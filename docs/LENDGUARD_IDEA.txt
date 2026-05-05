@@ -1,0 +1,125 @@
+ProofVault — Cryptographic Collateral Provenance for DeFi Lending on Solana
+The Problem
+On April 17, 2026, KelpDAO was exploited for $292 million — the largest DeFi hack of 2026. The root cause was deceptively simple: Aave accepted rsETH as collateral, but the rsETH was backed by a forged cross-chain message from a compromised LayerZero validator. The protocol had no way to know the collateral was fake. By the time the oracle caught the depeg, $190M in real ETH had already been drained against ghost collateral.
+
+This is not a KelpDAO-specific bug. It is a structural flaw in how every DeFi lending protocol accepts cross-chain collateral today:
+
+Asset lives natively on Chain A (e.g., Bitcoin, ETH on Ethereum)
+
+A bridge wraps it and sends a message to Chain B (Solana, Aave, etc.)
+
+The lending protocol trusts that message blindly — it has no way to verify the real asset is actually locked
+
+Attacker compromises the bridge validator → forges a message → mints unbacked collateral → drains the protocol
+
+No existing lending protocol — Aave, Morpho, Kamino, or any other — has a solution to this at the smart contract level. ProofVault is that solution.
+
+What ProofVault Does
+ProofVault is a cryptographic collateral verification layer built on Solana that uses two primitives unavailable anywhere else:
+
+Ika dWallets — to prove that cross-chain collateral is genuinely locked on its origin chain, without any bridge, using native MPC custody
+
+Encrypt FHE — to evaluate protocol risk thresholds on encrypted data, so liquidation triggers cannot be front-run by reading on-chain state
+
+Together, they make it cryptographically impossible to deposit fake cross-chain collateral, and economically impossible to front-run the protocol's own defense mechanism.
+
+Architecture
+Layer 1 — Provenance Vault (Ika)
+When a user wants to deposit native BTC or ETH as collateral on Solana:
+
+A dWallet is created via Ika's 2PC-MPC protocol. This wallet is co-controlled by the user AND the Ika Network — no single party can sign alone.
+
+The user transfers their native BTC/ETH into this dWallet on its origin chain. The asset never leaves Bitcoin or Ethereum — it is natively held, not wrapped.
+
+The dWallet generates a custody proof — a MessageApproval signed by the MPC network — confirming: "X amount of BTC is locked in dWallet Y as of timestamp Z."
+
+The Solana lending program (ProofVault) reads this MessageApproval account on-chain. Only if this proof exists and is recent does it allow the deposit.
+
+No bridge. No trust assumption. No forged message can pass — because the signature requires both the user and the Ika MPC network to cooperate. A compromised validator cannot forge this.
+
+This is the KelpDAO fix. The rsETH attack worked because a bridge message could be forged. A dWallet custody proof cannot — it requires 2PC-MPC participation from the Ika network, not just one validator.
+
+Layer 2 — Encrypted Risk Monitor (Encrypt)
+Once collateral is deposited, ProofVault continuously monitors its backing health. But here's the problem: if your risk thresholds are public on-chain, MEV bots read them and front-run your liquidations — draining the protocol before the circuit breaker fires.
+
+ProofVault solves this using Encrypt's REFHE protocol:
+
+The protocol admin stores the liquidation threshold (e.g., "freeze if backing ratio drops below 95%") as an FHE ciphertext on Solana. Nobody — not validators, not bots — can read the actual number.
+
+The backing ratio is updated by the dWallet proof feed (also encrypted).
+
+An encrypted computation check_backing_ratio(current_backing, total_minted, threshold) runs via Encrypt's off-chain executor, evaluating the condition entirely on ciphertexts.
+
+The result — an encrypted boolean EBool — is committed on-chain.
+
+The Solana program reads the EBool: if false, it silently freezes new deposits before the state is public.
+
+Bots cannot front-run a liquidation threshold they cannot see. By the time the freeze is public, it has already happened.
+
+Layer 3 — Silent Circuit Breaker (Solana Program)
+The Anchor program ties both layers together:
+
+text
+register_collateral()    → creates vault, links dWallet ID
+verify_custody_proof()   → reads MessageApproval, marks vault as VERIFIED
+deposit_collateral()     → REJECTED if vault not VERIFIED
+update_backing_state()   → encrypts new backing ratio into Encrypt account
+trigger_risk_check()     → calls execute_graph on Encrypt, reads EBool output
+circuit_breaker_freeze() → if EBool = false → protocol.frozen = true
+The circuit breaker is proactive, not reactive. It fires before the backing ratio is visible to the public — the opposite of every DeFi security system today.
+
+Who Uses ProofVault
+Primary users — Lending protocols: Kamino, Marginfi, or any Solana lender integrating ProofVault as a collateral acceptance module. Instead of trusting a bridge oracle, they call ProofVault's verify_custody_proof() before accepting any cross-chain asset.
+
+Secondary users — LRT/LST issuers: Protocols like KelpDAO, EtherFi, or Lido can use ProofVault to prove their backing to any lending market — turning their token from a trust-based claim into a cryptographically provable asset.
+
+Tertiary users — Institutional depositors: Funds depositing native BTC as DeFi collateral get a non-custodial, cryptographically verifiable receipt — something no Fireblocks integration can currently offer.
+
+What Makes This Novel
+Existing approach	ProofVault
+Bridge message → trusted, forgeable	dWallet custody proof → cryptographically unforgeable
+Collateral oracle → reads market price	Custody proof → reads actual lockup state on origin chain
+Risk thresholds → public on-chain	Risk thresholds → FHE encrypted, invisible to bots
+Circuit breaker → fires after depeg is public	Circuit breaker → fires before depeg is readable
+Bridge failure → $292M drained	Bridge failure → deposit rejected at program level
+No existing protocol — bridged or native — combines all four properties simultaneously. ProofVault is the first.
+
+Tech Stack
+Component	Technology
+Collateral custody	Ika dWallets (2PC-MPC, devnet)
+Encrypted risk logic	Encrypt REFHE (#[encrypt_fn] DSL, devnet)
+Core program	Anchor (Rust), Solana devnet
+Frontend	Next.js + Solana Wallet Adapter
+Proof verification	Ika gRPC + MessageApproval CPI
+Encrypted evaluation	Encrypt execute_graph + CiphertextAccount
+What Is Real vs. Mocked
+Real:
+
+Full Ika dWallet creation, DKG, approve_message CPI, MessageApproval on-chain
+
+Full Encrypt #[encrypt_fn] DSL compilation, execute_graph, EBool output read
+
+Anchor program with deposit guard, circuit breaker, freeze logic
+
+All data flows are production-architecture
+
+Mocked (devnet pre-alpha constraints):
+
+Ika MPC uses a single mock signer, not distributed validators — production will use 200+ nodes
+
+Encrypt data is stored as plaintext on devnet — production FHE privacy lands on mainnet
+
+Native BTC custody uses a devnet SOL account as proxy for Bitcoin mainnet
+
+The Demo (3 Minutes)
+Happy path: User creates dWallet → deposits BTC → custody proof fires → Solana program accepts deposit ✅
+
+Attack simulation: Click "Simulate Bridge Exploit" → backing ratio drops without a valid custody proof update
+
+Encrypted check: execute_graph evaluates check_backing_ratio on ciphertext → returns false
+
+Circuit breaker: Protocol freezes silently on-chain — Solana Explorer shows the freeze transaction
+
+Rejection: New deposit attempt blocked — program returns UnverifiedCollateral error
+
+The message: "This is what would have saved KelpDAO $292 million."
