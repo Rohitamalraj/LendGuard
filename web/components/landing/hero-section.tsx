@@ -42,10 +42,10 @@ export function HeroSection() {
             }`}
             style={{ fontFamily: 'var(--font-geist-pixel-line), monospace' }}
           >
-            <span className="text-balance">The complete platform to</span>
+            <span className="text-balance">Your collateral is</span>
             <br />
-            <span className="text-balance">build the</span>{" "}
-            <span className="text-primary">future.</span>
+            <span className="text-balance">genuinely backed.</span>{" "}
+            <span className="text-primary">Always.</span>
           </h1>
           
           <p 
@@ -53,8 +53,7 @@ export function HeroSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            Your toolkit to stop configuring and start innovating. 
-            Securely build, deploy, and scale AI-powered applications.
+            What would have saved KelpDAO $292 million. LendGuard uses Ika dWallets to prove cross-chain collateral is genuinely locked on its origin chain, and Encrypt FHE to evaluate protocol risk privately — preventing both fake collateral acceptance and MEV front-running.
           </p>
         </div>
         

@@ -1,0 +1,369 @@
+
+Submission Tracks
+
+$50,000 in Security Audit Credits for Frontier HackathonAdevar Labs Inc.
+50,000USDC
+Build Live dApp with Solflare, Kamino, DFlow, Quicknode or Birdeye on EitherwayEitherway
+20,000USDC
+Encrypt & Ika - Bridgeless Capital Markets and Encrypted Capital MarketsEncrypt
+15,000USDC
+Build the Best Benefit. Win a Wallet Placement (Germany).theMiracle
+10,000USDC
+Build the Best Benefit. Win a Wallet Placement (Spain).theMiracle
+10,000USDC
+Build the Best Benefit. Win a Wallet Placement (Global).theMiracle
+10,000USDC
+Tether Frontier Hackathon TrackTether
+10,000USDT
+Solana Nepal Hackathon | Superteam Nepal Frontier TrackSuperteam Nepal
+10,000USDG
+Palm USD x Superteam UAE - Global TrackPalm USD
+10,000PUSD
+Canada Prize Track by IGWM & SuperteamCASuperteam Canada
+10,000USDG
+SuperteamNG x Raenest Colosseum Frontier Hackathon Side TrackSuperteam Nigeria
+10,000USDG
+Build with Umbra Side Track for $10,000Umbra
+10,000USDC
+Superteam Poland x Eleven Labs I Frontier Side TrackSuperteam Poland
+10,000USDG
+Indonesia National Campus HackathonSuperteam Indonesia
+10,000USDG
+Superteam Turkey x Halborn Solana Colosseum Frontier HackathonSuperteam Turkey
+10,000USDG
+Superteam Japan Frontier Hackathon Side TrackSuperteam Japan
+10,000USDG
+Side Track Superteam BrasilSuperteam Brasil
+10,000USDG
+Superteam Balkan x SEE ICT | Frontier Side TrackSuperteam Balkan
+10,000USDG
+La Familia Frontier Hackathon Side TrackLa Familia
+10,000USDG
+Frontier Hackathon (Ukrainian Track)Superteam Ukraine
+10,000USDG
+Colosseum Frontier Hackathon | Superteam IE TrackSuperteam Ireland
+10,000USDG
+Colosseum Frontier Hackathon — Superteam Georgia TrackSuperteam Georgia
+10,000USDG
+100xDevs Frontier Hackathon Track100xDevs
+10,000USDC
+Frontier Hackathon (Singapore Track)Superteam Singapore
+10,000USDG
+NeosLegal x Superteam UAE - Solana Builders in the UAESuperteam UAE
+10,000USDG
+Visa Frontier Hackathon TrackSuperteam Germany
+10,000USDG
+Solana Network State Spring '26 (Superteam MY x AppWorks x Jelawang Capital)Superteam Malaysia
+10,000USDC
+$10,000 in RPC Infrastructure Credits for Colosseum Frontier HackathonRPC Fast
+10,000USDC
+Seoulana x Rocketpunch: Frontier Side TrackSuperteam Korea
+10,000USDG
+Payments Track | Superteam India x Dodo PaymentsSuperteam India
+10,000USDG
+Superteam Australia | Frontier Hackathon Side TrackSuperteam Australia
+8,000USDG
+Superteam NL x AISO | Frontier Hackathon Side TrackSuperteam Netherlands
+8,000USDG
+Dune Analytics | Frontier Data Sidetrack - Win $6k PlanDune
+6,000USDC
+Build real world payment solutions with privacy — Cloak TrackCloak
+5,010USDC
+Build on Solana with KAST - PakistanSuperteam Pakistan
+5,000USDC
+Build a Autonomous Onchain Agent using Zerion CLIZerion
+5,000USDC
+🪪 SNS Identity Track Colosseum Hackathon (Powered by SNS, STMY, MagicBlock))SNS
+5,000USDC
+🔐⚡ Privacy Track — Colosseum Hackathon (Powered by MagicBlock, ST MY & SNS)MagicBlock
+5,000USDC
+Side Track Superteam KazakhstanSuperteam Kazakhstan
+4,000USDG
+Build with Torque MCPTorque
+3,000USDC
+Build with GoldRush Track (Powered by Covalent)Covalent
+3,000USDC
+Superteam KZ & METAFORRA Frontier Side TrackSuperteam Kazakhstan
+3,000USDG
+Superteam KZ x S1lkPay Frontier Side TrackSuperteam Kazakhstan
+3,000USDG
+Not Your Regular BountyJupiter
+3,000jupUSD
+Build with LI.FI: Superteam Germany 🇩🇪LI.FI
+2,500USDC
+Build with LI.FI: Superteam BalkanLI.FI
+2,500USDC
+Build on top of Jito infrastructureJET Europa
+2,000USDC
+Build an Autonomous Onchain Agent using the Zerion CLIZerion
+2,000USDC
+Superteam Australia | First Time Builders Side TrackSuperteam Australia
+2,000USDG
+Superteam NL x AISO | Frontier Hackathon First-Time BuildersSuperteam Netherlands
+2,000USDG
+Build with KIRAPAYKIRAPAY
+1,505USDC
+SagaPad | Build Agentic Skills helping Colosseum projects win on XSagaPad
+1,000USDC
+LPAgent.io | API integrate SidetrackNimbus Data Labs
+900USDC
+Launch a Token & Bet on its fate - Build on dum.funDum.fun
+500USDC
+Completed 2 steps
+Now I have the full list. Let me be surgical — only global tracks (no country restriction) that SentinelGate genuinely fits.
+
+Global Tracks That Fit SentinelGate
+🏆 Tier 1 — Strong Fit, Apply Immediately
+1. Adevar Labs — $50,000 in Security Audit Credits (Global)
+This is an incredible hidden gem for SentinelGate specifically. Adevar Labs audits Solana's most ambitious DeFi protocols. They're offering $50K in audit credits — and your project is literally a DeFi security infrastructure tool that prevents the KelpDAO class of exploits. This is exactly what they want to fund and certify. Winning this also gives you a security audit, which is a massive credibility booster for any real launch.
+
+2. Encrypt & Ika — $15,000 USDC (Global)
+Your primary track. Already confirmed perfect fit.
+
+3. MagicBlock Privacy Track — $5,000 USDC (Global)
+Explicitly: "privacy track" powered by MagicBlock + SNS. Your Encrypt FHE-based encrypted risk thresholds and silent circuit breaker are textbook privacy DeFi. One extra paragraph in your README about the privacy design wins this.
+
+4. 100xDevs Track — $10,000 USDC (Global)
+Real-world problem, clean implementation, strong developer story. KelpDAO just happened — this is a highly topical submission.
+
+🥈 Tier 2 — Moderate Fit, Low Competition, Easy Apply
+5. Tether Frontier Track — $10,000 USDT (Global)
+Tether is now deep in DeFi infrastructure and Solana. SentinelGate protects lending protocols that could use USDT as the loan asset — frame it as "secure infrastructure for USDT-based lending on Solana."
+
+6. Palm USD Global Track — $10,000 PUSD (Global)
+RWA + stablecoin focus. Frame SentinelGate as enabling safe RWA collateral acceptance from any chain — i.e., Palm USD could be issued as collateral verified via dWallet.
+
+7. GoldRush by Covalent — $3,000 USDC (Global)
+Covalent indexes on-chain data. Your Provenance Vault emits rich on-chain events (ProofVerified, CircuitBreakerFired) — integrate GoldRush to display collateral health analytics on your dashboard. One afternoon of work to qualify.
+
+❌ Skip These (Not a Fit or Country-Restricted)
+Track	Why Skip
+theMiracle Germany/Spain	Country restricted
+Eitherway	Requires Solflare/Kamino/DFlow as core feature, not natural fit
+Zerion Agent	Requires Zerion CLI as core, different architecture
+Dune Analytics	Data dashboard only, no builder product
+Payments Track (India)	Superteam India — payments focus, not security/DeFi infra
+All other country tracks	Country restricted
+Your Submission Stack (Priority Order)
+#	Track	Prize	Extra Work Needed
+1	Encrypt & Ika	$15,000 USDC	Already building
+2	Adevar Labs	$50,000 audit credits	Frame README around security
+3	100xDevs	$10,000 USDC	Same project, no changes
+4	Privacy Track (MagicBlock)	$5,000 USDC	Add privacy section to README
+5	Tether Track	$10,000 USDT	Add USDT lending angle
+6	Palm USD Global	$10,000 PUSD	Add RWA collateral angle
+7	GoldRush (Covalent)	$3,000 USDC	Add GoldRush dashboard widget
+Total potential: ~$103,000 in prizes/credits from one project. The Adevar Labs credit alone is worth pursuing hard — a $50K security audit for free is invaluable if you plan to launch this post-hackathon.
+
+Prepared using Claude Sonnet 4.6 Thinking
+Ok forget all about that and give me a full detailed description about the idea we have disscsed.
+Completed 2 steps
+Good — the name "SentinelGate" is already taken by an AI agent access control project. Let's rename and give you the complete, full project description from scratch. Here it is:
+
+ProofVault — Cryptographic Collateral Provenance for DeFi Lending on Solana
+The Problem
+On April 17, 2026, KelpDAO was exploited for $292 million — the largest DeFi hack of 2026. The root cause was deceptively simple: Aave accepted rsETH as collateral, but the rsETH was backed by a forged cross-chain message from a compromised LayerZero validator. The protocol had no way to know the collateral was fake. By the time the oracle caught the depeg, $190M in real ETH had already been drained against ghost collateral.
+
+This is not a KelpDAO-specific bug. It is a structural flaw in how every DeFi lending protocol accepts cross-chain collateral today:
+
+Asset lives natively on Chain A (e.g., Bitcoin, ETH on Ethereum)
+
+A bridge wraps it and sends a message to Chain B (Solana, Aave, etc.)
+
+The lending protocol trusts that message blindly — it has no way to verify the real asset is actually locked
+
+Attacker compromises the bridge validator → forges a message → mints unbacked collateral → drains the protocol
+
+No existing lending protocol — Aave, Morpho, Kamino, or any other — has a solution to this at the smart contract level. ProofVault is that solution.
+
+What ProofVault Does
+ProofVault is a cryptographic collateral verification layer built on Solana that uses two primitives unavailable anywhere else:
+
+Ika dWallets — to prove that cross-chain collateral is genuinely locked on its origin chain, without any bridge, using native MPC custody
+
+Encrypt FHE — to evaluate protocol risk thresholds on encrypted data, so liquidation triggers cannot be front-run by reading on-chain state
+
+Together, they make it cryptographically impossible to deposit fake cross-chain collateral, and economically impossible to front-run the protocol's own defense mechanism.
+
+Architecture
+Layer 1 — Provenance Vault (Ika)
+When a user wants to deposit native BTC or ETH as collateral on Solana:
+
+A dWallet is created via Ika's 2PC-MPC protocol. This wallet is co-controlled by the user AND the Ika Network — no single party can sign alone.
+
+The user transfers their native BTC/ETH into this dWallet on its origin chain. The asset never leaves Bitcoin or Ethereum — it is natively held, not wrapped.
+
+The dWallet generates a custody proof — a MessageApproval signed by the MPC network — confirming: "X amount of BTC is locked in dWallet Y as of timestamp Z."
+
+The Solana lending program (ProofVault) reads this MessageApproval account on-chain. Only if this proof exists and is recent does it allow the deposit.
+
+No bridge. No trust assumption. No forged message can pass — because the signature requires both the user and the Ika MPC network to cooperate. A compromised validator cannot forge this.
+
+This is the KelpDAO fix. The rsETH attack worked because a bridge message could be forged. A dWallet custody proof cannot — it requires 2PC-MPC participation from the Ika network, not just one validator.
+
+Layer 2 — Encrypted Risk Monitor (Encrypt)
+Once collateral is deposited, ProofVault continuously monitors its backing health. But here's the problem: if your risk thresholds are public on-chain, MEV bots read them and front-run your liquidations — draining the protocol before the circuit breaker fires.
+
+ProofVault solves this using Encrypt's REFHE protocol:
+
+The protocol admin stores the liquidation threshold (e.g., "freeze if backing ratio drops below 95%") as an FHE ciphertext on Solana. Nobody — not validators, not bots — can read the actual number.
+
+The backing ratio is updated by the dWallet proof feed (also encrypted).
+
+An encrypted computation check_backing_ratio(current_backing, total_minted, threshold) runs via Encrypt's off-chain executor, evaluating the condition entirely on ciphertexts.
+
+The result — an encrypted boolean EBool — is committed on-chain.
+
+The Solana program reads the EBool: if false, it silently freezes new deposits before the state is public.
+
+Bots cannot front-run a liquidation threshold they cannot see. By the time the freeze is public, it has already happened.
+
+Layer 3 — Silent Circuit Breaker (Solana Program)
+The Anchor program ties both layers together:
+
+text
+register_collateral()    → creates vault, links dWallet ID
+verify_custody_proof()   → reads MessageApproval, marks vault as VERIFIED
+deposit_collateral()     → REJECTED if vault not VERIFIED
+update_backing_state()   → encrypts new backing ratio into Encrypt account
+trigger_risk_check()     → calls execute_graph on Encrypt, reads EBool output
+circuit_breaker_freeze() → if EBool = false → protocol.frozen = true
+The circuit breaker is proactive, not reactive. It fires before the backing ratio is visible to the public — the opposite of every DeFi security system today.
+
+Who Uses ProofVault
+Primary users — Lending protocols: Kamino, Marginfi, or any Solana lender integrating ProofVault as a collateral acceptance module. Instead of trusting a bridge oracle, they call ProofVault's verify_custody_proof() before accepting any cross-chain asset.
+
+Secondary users — LRT/LST issuers: Protocols like KelpDAO, EtherFi, or Lido can use ProofVault to prove their backing to any lending market — turning their token from a trust-based claim into a cryptographically provable asset.
+
+Tertiary users — Institutional depositors: Funds depositing native BTC as DeFi collateral get a non-custodial, cryptographically verifiable receipt — something no Fireblocks integration can currently offer.
+
+What Makes This Novel
+Existing approach	ProofVault
+Bridge message → trusted, forgeable	dWallet custody proof → cryptographically unforgeable
+Collateral oracle → reads market price	Custody proof → reads actual lockup state on origin chain
+Risk thresholds → public on-chain	Risk thresholds → FHE encrypted, invisible to bots
+Circuit breaker → fires after depeg is public	Circuit breaker → fires before depeg is readable
+Bridge failure → $292M drained	Bridge failure → deposit rejected at program level
+No existing protocol — bridged or native — combines all four properties simultaneously. ProofVault is the first.
+
+Tech Stack
+Component	Technology
+Collateral custody	Ika dWallets (2PC-MPC, devnet)
+Encrypted risk logic	Encrypt REFHE (#[encrypt_fn] DSL, devnet)
+Core program	Anchor (Rust), Solana devnet
+Frontend	Next.js + Solana Wallet Adapter
+Proof verification	Ika gRPC + MessageApproval CPI
+Encrypted evaluation	Encrypt execute_graph + CiphertextAccount
+What Is Real vs. Mocked
+Real:
+
+Full Ika dWallet creation, DKG, approve_message CPI, MessageApproval on-chain
+
+Full Encrypt #[encrypt_fn] DSL compilation, execute_graph, EBool output read
+
+Anchor program with deposit guard, circuit breaker, freeze logic
+
+All data flows are production-architecture
+
+Mocked (devnet pre-alpha constraints):
+
+Ika MPC uses a single mock signer, not distributed validators — production will use 200+ nodes
+
+Encrypt data is stored as plaintext on devnet — production FHE privacy lands on mainnet
+
+Native BTC custody uses a devnet SOL account as proxy for Bitcoin mainnet
+
+The Demo (3 Minutes)
+Happy path: User creates dWallet → deposits BTC → custody proof fires → Solana program accepts deposit ✅
+
+Attack simulation: Click "Simulate Bridge Exploit" → backing ratio drops without a valid custody proof update
+
+Encrypted check: execute_graph evaluates check_backing_ratio on ciphertext → returns false
+
+Circuit breaker: Protocol freezes silently on-chain — Solana Explorer shows the freeze transaction
+
+Rejection: New deposit attempt blocked — program returns UnverifiedCollateral error
+
+The message: "This is what would have saved KelpDAO $292 million."
+
+Prepared using Claude Sonnet 4.6 Thinking
+Who Uses ProofVault
+Primary users — Lending protocols: Kamino, Marginfi, or any Solana lender integrating ProofVault as a collateral acceptance module. Instead of trusting a bridge oracle, they call ProofVault's verify_custody_proof() before accepting any cross-chain asset.
+Secondary users — LRT/LST issuers: Protocols like KelpDAO, EtherFi, or Lido can use ProofVault to prove their backing to any lending market — turning their token from a trust-based claim into a cryptographically provable asset.
+Tertiary users — Institutional depositors: Funds depositing native BTC as DeFi collateral get a non-custodial, cryptographically verifiable receipt — something no Fireblocks integration can currently offer.
+
+Looks good but inorder for them to integrate this... do we need to publish any npm package like that??? Or that would be good?
+
+Yes, absolutely — publishing an SDK/npm package is not just good, it's what separates a hackathon project from an actual protocol. Here's the full picture:
+
+What You Need to Publish
+1. 📦 @proofvault/sdk — NPM Package (TypeScript)
+This is the main integration surface for lending protocols. It wraps all the Ika + Encrypt + Anchor CPI calls into clean, simple functions:
+
+typescript
+import { ProofVault } from "@proofvault/sdk";
+
+const pv = new ProofVault({ connection, wallet, cluster: "devnet" });
+
+// Kamino / Marginfi calls this before accepting collateral
+const proof = await pv.verifyCustodyProof(dwalletId);
+if (!proof.isValid) throw new Error("Collateral not cryptographically backed");
+
+// LRT issuer proves their backing
+await pv.registerCollateralVault({ dwalletId, assetType: "BTC", amount });
+
+// Protocol checks encrypted risk state
+const isSafe = await pv.checkRiskState(vaultId);
+Why this matters for judges: Any judge from Kamino, Marginfi, or Aave can look at this and immediately understand how they'd integrate it in an afternoon. That's commercial potential made tangible.
+
+2. 🦀 Anchor CPI Crate — proofvault-cpi (Rust)
+For on-chain integrations — lending protocols that want their Solana program to call ProofVault directly inside their own instruction:
+
+rust
+// Inside Kamino's Anchor program
+use proofvault_cpi::verify_custody_proof;
+
+pub fn accept_collateral(ctx: Context<AcceptCollateral>) -> Result<()> {
+    // This CPI call rejects fake collateral at the program level
+    verify_custody_proof(
+        ctx.accounts.proofvault_program.clone(),
+        ctx.accounts.vault.clone(),
+        ctx.accounts.message_approval.clone(),
+    )?;
+    // proceed with deposit...
+}
+Published to crates.io as proofvault-cpi. This is the equivalent of how Anchor itself publishes CPI crates for Jupiter, Pyth, etc.
+
+3. 📄 IDL + Program Address
+Publish your program's IDL JSON to the repo so any protocol can generate their own client:
+
+bash
+anchor build
+# IDL auto-generated at target/idl/proofvault.json
+# Program ID: ProofVau1t...xyz (deployed on devnet)
+Protocols paste your IDL into their own Anchor workspace and call your program like any other CPI.
+
+What to Actually Ship for the Hackathon
+Realistically in 6 days, here's what's feasible:
+
+Deliverable	Effort	Impact
+@proofvault/sdk npm package (TypeScript)	1 day	⭐⭐⭐⭐⭐ — judges can install and try it
+Anchor program deployed on devnet	Already planned	⭐⭐⭐⭐⭐
+proofvault-cpi Rust crate	0.5 day extra	⭐⭐⭐⭐ — shows on-chain composability
+IDL published in GitHub repo	30 mins	⭐⭐⭐ — free credibility
+Example integration repo	1 hour	⭐⭐⭐⭐ — shows real usage
+You don't need to publish to crates.io for the hackathon — just having the crate in a /crates/proofvault-cpi folder in your repo and the npm package published (even as 0.1.0-alpha) is enough to prove integration intent.
+
+The README Integration Example (The Real Closer)
+The single most persuasive thing in your README will be this section:
+
+text
+## Integrating ProofVault in 3 lines
+
+npm install @proofvault/sdk
+
+import { ProofVault } from "@proofvault/sdk";
+const pv = new ProofVault({ connection, wallet });
+const proof = await pv.verifyCustodyProof(dwalletId);
+// That's it. Your protocol now rejects fake cross-chain collateral.
+When a Kamino engineer reads that during judging, the commercial potential criterion

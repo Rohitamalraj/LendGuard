@@ -1,0 +1,21 @@
+[package]
+name = "lendguard_proof_vault"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["devnet"]
+devnet = []
+
+[programs.devnet]
+lendguard_proof_vault = "11111111111111111111111111111111"
+
+[registry]
+url = "https://api.dev.anchor-lang.com"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/lendguard-devnet.json"
+
+[scripts]
+test = "yarn run ts-mocha --timeout 1000000 tests/**/*.ts"

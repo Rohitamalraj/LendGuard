@@ -5,128 +5,85 @@ import { AsciiCube } from "./ascii-cube";
 
 // Animated ASCII generators
 const asciiAnimations = {
-  neural: (frame: number) => {
-    const states = ["◉", "◎", "○", "◎"];
-    const getChar = (offset: number) => states[(frame + offset) % states.length];
-    return `  ┌───────┐
-  │ ${getChar(0)} ${getChar(1)} ${getChar(2)} │
-  │ ${getChar(3)} ${getChar(4)} ${getChar(5)} │
-  │ ${getChar(6)} ${getChar(7)} ${getChar(8)} │
-  └───────┘`;
+  proofVerification: (frame: number) => {
+    const states = ["◌", "◉", "✓"];
+    const state = states[frame % states.length];
+    return `  dWallet
+   ${state}
+  Ika Proof
+   ✓ VERIFIED`;
   },
-  workflow: (frame: number) => {
-    const arrows = ["─", "═", "━", "═"];
-    const pulse = ["►", "▸", "▹", "▸"];
-    const a = arrows[frame % arrows.length];
+  encryption: (frame: number) => {
+    const locks = ["◈", "◇", "◆"];
+    const l = locks[frame % locks.length];
+    return `  🔐 FHE
+   ${l}
+  Encrypted
+   Predicate`;
+  },
+  circuitBreaker: (frame: number) => {
+    const states = ["◉", "●"];
+    const state = states[frame % states.length];
+    return `  Risk: ${state}
+   
+  Fail →
+  FROZEN`;
+  },
+  custody: (frame: number) => {
+    const arrows = ["→", "→", "→"];
+    const arr = arrows[frame % arrows.length];
+    return `  Native
+   ${arr}
+  dWallet
+   MPC ✓`;
+  },
+  sdk: (frame: number) => {
+    const dots = [".", "..", "..."];
+    const dot = dots[frame % dots.length];
+    return `  import PV
+   await verify${dot}
+   ✓ Verified`;
+  },
+  monitoring: (frame: number) => {
+    const pulse = ["○", "◐", "●"];
     const p = pulse[frame % pulse.length];
-    return `  ┌─┐   ┌─┐
-  │A├${a}${a}${p}│B│
-  └─┘   └┬┘
-        ┌▼┐
-        │C│
-        └─┘`;
-  },
-  security: (frame: number) => {
-    const lock = ["◈", "◇", "◆", "◇"];
-    const bars = ["░", "▒", "▓", "▒"];
-    const l = lock[frame % lock.length];
-    const b = bars[frame % bars.length];
-    return `   ╔═══╗
-   ║ ${l} ║
-  ┌╨───╨┐
-  │${b}${b}${b}${b}${b}│
-  └─────┘`;
-  },
-  analytics: (frame: number) => {
-    const heights = [
-      [1, 2, 3, 2],
-      [2, 3, 2, 3],
-      [3, 2, 3, 1],
-      [2, 1, 2, 2],
-    ];
-    const h = heights[frame % heights.length];
-    const bar = (height: number) => {
-      if (height === 3) return "█";
-      if (height === 2) return "▄";
-      return "▁";
-    };
-    return `  │${h[0] === 3 ? "▄" : " "}${h[1] === 3 ? "▄" : " "}${h[2] === 3 ? "▄" : " "}${h[3] === 3 ? "▄" : " "}
-  │${bar(h[0])} ${bar(h[1])} ${bar(h[2])} ${bar(h[3])}
-  │█ █ █ █
-  └────────`;
-  },
-  globe: (frame: number) => {
-    const rotations = [
-      `    .--.
-   /    \\
-  | (  ) |
-   \\    /
-    '--'`,
-      `    .--.
-   /    \\
-  |  () |
-   \\    /
-    '--'`,
-      `    .--.
-   /    \\
-  |  (  )|
-   \\    /
-    '--'`,
-      `    .--.
-   /    \\
-  | ()  |
-   \\    /
-    '--'`,
-    ];
-    return rotations[frame % rotations.length];
-  },
-  api: (frame: number) => {
-    const methods = ["GET", "POST", "PUT", "GET"];
-    const arrows = [
-      "────────►",
-      "═══════►",
-      "━━━━━━━►",
-      "────────►",
-    ];
-    const m = methods[frame % methods.length];
-    const a = arrows[frame % arrows.length];
-    return `  ${m} /api
-  ${a}
-  ◄────────
-  { data }`;
+    return `  GoldRush
+   ${p}
+  Events Live
+   Real-time`;
   },
 };
 
 const features = [
   {
-    title: "Neural Processing",
-    description: "Advanced deep learning models that understand context and adapt to your specific business needs.",
-    animationKey: "neural" as const,
+    title: "Proof Verification",
+    description: "Ika dWallet custody proofs prove collateral is genuinely locked on its origin chain — cryptographically impossible to forge.",
+    animationKey: "proofVerification" as const,
   },
   {
-    title: "Smart Workflows",
-    description: "Visual workflow builder with drag-and-drop simplicity. Chain AI actions to create powerful automations.",
-    animationKey: "workflow" as const,
+    title: "Encrypted Risk Checks",
+    description: "Encrypt FHE evaluates liquidation thresholds on ciphertext. Bots can't see the threshold, can't front-run your circuit breaker.",
+    animationKey: "encryption" as const,
   },
   {
-    title: "Enterprise Security",
-    description: "SOC 2 Type II certified with end-to-end encryption. Your data never leaves your control.",
-    animationKey: "security" as const,
+    title: "Silent Circuit Breaker",
+    description: "Protocol freezes instantly when risk predicate fails, before state is public. Proactive defense, not reactive cleanup.",
+    animationKey: "circuitBreaker" as const,
   },
   {
-    title: "Real-time Analytics",
-    description: "Live dashboards and instant insights. Monitor performance and optimize workflows on the fly.",
-    animationKey: "analytics" as const,
+    title: "Native Custody",
+    description: "Assets held natively on Bitcoin/Ethereum via Ika MPC. Co-controlled by user + network, never wrapped or bridged.",
+    animationKey: "custody" as const,
   },
   {
-    title: "Global Scale",
-    description: "Distributed infrastructure across 12 regions. Sub-100ms latency worldwide.",
-    animationKey: "globe" as const,
+    title: "@lendguard/sdk",
+    description: "One npm package. Three lines of code. Your lending protocol now rejects fake collateral at the program level.",
+    animationKey: "sdk" as const,
   },
   {
-    title: "API First",
-    description: "RESTful and GraphQL APIs with comprehensive SDKs. Integrate Nexus into any stack.",
-    animationKey: "api" as const,
+    title: "GoldRush Monitoring",
+    description: "Every LendGuard event indexed real-time. See deposits verified, exploits rejected, freezes triggered — all on-chain.",
+    animationKey: "monitoring" as const,
   },
 ];
 
@@ -221,23 +178,24 @@ export function FeaturesSection() {
         {/* Header with ASCII cube */}
         <div className="grid lg:grid-cols-2 gap-16 items-center mb-20">
           <div>
-            <p className="text-sm font-mono text-primary mb-3">// PLATFORM</p>
+            <p className="text-sm font-mono text-primary mb-3">// CORE ARCHITECTURE</p>
             <h2
               className={`text-3xl lg:text-5xl font-semibold tracking-tight mb-6 transition-all duration-700 ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
               }`}
             >
-              <span className="text-balance">Everything you need</span>
+              <span className="text-balance">Three layers to</span>
               <br />
-              <span className="text-balance">to build at scale.</span>
+              <span className="text-balance">stop fake collateral.</span>
             </h2>
             <p
               className={`text-lg text-muted-foreground leading-relaxed max-w-lg transition-all duration-700 delay-100 ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
               }`}
             >
-              A complete platform for building, deploying, and scaling AI applications. 
-              From prototype to production in minutes, not months.
+              Layer 1: Ika dWallets prove native collateral is locked.
+              Layer 2: Encrypt FHE keeps risk thresholds private.
+              Layer 3: Anchor program enforces it all at the smart contract level.
             </p>
           </div>
           

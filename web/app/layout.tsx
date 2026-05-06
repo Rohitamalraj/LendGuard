@@ -16,8 +16,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Nexus AI - Intelligent Automation Platform',
-  description: 'Transform your workflow with AI-powered automation. Nexus AI brings cutting-edge machine learning to your fingertips.',
+  title: 'LendGuard — Cryptographic Collateral Provenance for DeFi Lending',
+  description: 'What would have saved KelpDAO $292 million. LendGuard uses Ika dWallets and Encrypt FHE to prove cross-chain collateral is genuine and evaluate protocol risk privately on Solana.',
   generator: 'v0.app',
   icons: {
     icon: [

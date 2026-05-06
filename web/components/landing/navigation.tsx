@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
-  { name: "Platform", href: "#features" },
-  { name: "Technology", href: "#how-it-works" },
-  { name: "Metrics", href: "#metrics" },
-  { name: "Developers", href: "#developers" },
+  { name: "Architecture", href: "#architecture" },
+  { name: "Sponsors", href: "#sponsors" },
+  { name: "Demo", href: "#demo" },
+  { name: "Docs", href: "#docs" },
 ];
 
 export function Navigation() {
@@ -38,11 +38,11 @@ export function Navigation() {
             <div className="relative w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20" />
               <span className="font-mono text-primary font-bold text-lg relative z-10">
-                N
+                L
               </span>
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-primary/10" />
             </div>
-            <span className="text-xl font-bold tracking-tight">Nexus</span>
+            <span className="text-xl font-bold tracking-tight">LendGuard</span>
           </a>
 
           {/* Desktop Navigation */}

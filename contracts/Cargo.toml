@@ -1,0 +1,37 @@
+[package]
+name = "lendguard-proof-vault"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anchor-lang = "0.32"
+anchor-spl = "0.32"
+solana-program = "=1.18.22"
+
+# Ika dWallet integration
+ika-dwallet-anchor = { git = "https://github.com/dwallet-labs/ika-pre-alpha" }
+ika-sdk-types = { package = "ika-solana-sdk-types", git = "https://github.com/dwallet-labs/ika-pre-alpha" }
+
+# Encrypt FHE integration
+encrypt-anchor = { git = "https://github.com/dwallet-labs/encrypt-pre-alpha" }
+encrypt-dsl = { package = "encrypt-solana-dsl", git = "https://github.com/dwallet-labs/encrypt-pre-alpha" }
+encrypt-types = { git = "https://github.com/dwallet-labs/encrypt-pre-alpha" }
+
+# Utilities
+spl-token = { version = "3.5", features = ["no-entrypoint"] }
+thiserror = "1.0"
+
+[dev-dependencies]
+solana-sdk = "=1.18.22"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[[test]]
+name = "integration_tests"
+path = "tests/integration_tests.rs"

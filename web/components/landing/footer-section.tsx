@@ -4,26 +4,26 @@ import { Github, Twitter } from "lucide-react";
 import { Terminal } from "lucide-react";
 
 const footerLinks = {
-  Product: [
-    { name: "Features", href: "#features" },
-    { name: "Technology", href: "#how-it-works" },
-    { name: "Metrics", href: "#metrics" },
-    { name: "Changelog", href: "#" },
+  Protocol: [
+    { name: "Architecture", href: "#architecture" },
+    { name: "Demo", href: "#demo" },
+    { name: "GitHub", href: "#" },
+    { name: "Devnet", href: "#" },
   ],
   Developers: [
-    { name: "Documentation", href: "#" },
-    { name: "API Reference", href: "#" },
-    { name: "SDK", href: "#developers" },
-    { name: "Status", href: "#" },
+    { name: "README", href: "#" },
+    { name: "@lendguard/sdk", href: "#" },
+    { name: "Anchor Program", href: "#" },
+    { name: "IDL", href: "#" },
   ],
-  Company: [
-    { name: "About", href: "#" },
-    { name: "Blog", href: "#" },
-    { name: "Careers", href: "#" },
-    { name: "Contact", href: "#" },
+  Sponsors: [
+    { name: "Encrypt", href: "#" },
+    { name: "Ika", href: "#" },
+    { name: "Covalent", href: "#" },
+    { name: "Torque MCP", href: "#" },
   ],
   Legal: [
-    { name: "Privacy", href: "#" },
+    { name: "MIT License", href: "#" },
     { name: "Terms", href: "#" },
     { name: "Security", href: "#" },
   ],
@@ -41,13 +41,13 @@ export function FooterSection() {
               {/* Logo */}
               <a href="#" className="flex items-center gap-2 mb-6">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Terminal className="w-4 h-4 text-primary" />
+                  <span className="font-mono text-primary font-bold">L</span>
                 </div>
-                <span className="font-semibold text-lg tracking-tight">nexus</span>
+                <span className="font-semibold text-lg tracking-tight">LendGuard</span>
               </a>
 
               <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-                The complete platform to build, deploy, and scale AI-powered applications.
+                Cryptographic collateral provenance for DeFi lending on Solana. What would have saved KelpDAO $292 million.
               </p>
 
               {/* Social Links */}
