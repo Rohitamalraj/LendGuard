@@ -42,10 +42,10 @@ export function HeroSection() {
             }`}
             style={{ fontFamily: 'var(--font-geist-pixel-line), monospace' }}
           >
-            <span className="text-balance">The complete platform to</span>
+            <span className="text-balance">Your collateral is</span>
             <br />
-            <span className="text-balance">build the</span>{" "}
-            <span className="text-primary">future.</span>
+            <span className="text-balance">genuinely backed.</span>{" "}
+            <span className="text-primary">Always.</span>
           </h1>
           
           <p 
@@ -53,8 +53,7 @@ export function HeroSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            Your toolkit to stop configuring and start innovating. 
-            Securely build, deploy, and scale AI-powered applications.
+            What would have saved KelpDAO $292 million. LendGuard uses Ika dWallets to prove cross-chain collateral is genuinely locked on its origin chain, and Encrypt FHE to evaluate protocol risk privately — preventing both fake collateral acceptance and MEV front-running.
           </p>
         </div>
         
@@ -67,16 +66,18 @@ export function HeroSection() {
           <Button 
             size="lg" 
             className="bg-foreground hover:bg-foreground/90 text-background px-6 h-11 text-sm font-medium group"
+            onClick={() => window.location.href = "/demo"}
           >
-            Get a demo
+            Run the Demo
             <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-0.5" />
           </Button>
           <Button 
             size="lg" 
             variant="outline" 
             className="h-11 px-6 text-sm font-medium border-border hover:bg-secondary/50 bg-transparent"
+            onClick={() => window.location.href = "#how-it-works"}
           >
-            Explore the Product
+            How It Works
           </Button>
         </div>
         

@@ -5,30 +5,50 @@ import { useEffect, useRef, useState } from "react";
 const steps = [
   {
     number: "01",
-    title: "Connect",
-    description: "Integrate with 200+ data sources. One-click setup for databases, APIs, and cloud services.",
-    code: `nexus.connect({
-  source: 'postgresql',
-  config: process.env.DB_URL
-})`,
+    title: "Register Collateral",
+    description: "Create a vault and link an Ika dWallet ID. User deposits native BTC or ETH on its origin chain.",
+    code: `const lg = new LendGuard({
+  connection, wallet, cluster
+});
+
+await lg.registerVault({
+  dwalletId: "dW4llet...",
+  assetType: "BTC"
+});`,
   },
   {
     number: "02",
-    title: "Configure",
-    description: "Define your AI workflows with our visual builder or code-first approach.",
-    code: `nexus.workflow('process-orders', {
-  trigger: 'new_order',
-  steps: ['validate', 'enrich', 'notify']
-})`,
+    title: "Verify Custody Proof",
+    description: "Ika network generates MessageApproval proving collateral is locked. LendGuard reads and validates it.",
+    code: `// Ika dWallet generates proof
+const proof = await lg.verifyCustodyProof({
+  vaultId,
+  expectedDwalletId,
+  messageApproval
+});
+
+if (!proof.isValid) {
+  throw new Error(
+    "Fake collateral rejected"
+  );
+}`,
   },
   {
     number: "03",
-    title: "Deploy",
-    description: "Ship to production instantly. Auto-scaling, monitoring, and 99.9% uptime included.",
-    code: `nexus.deploy({
-  env: 'production',
-  region: 'auto'
-}) // Live in < 30s`,
+    title: "Circuit Breaker Trigger",
+    description: "Encrypt FHE evaluates risk predicate on ciphertext. If it fails, protocol freezes silently.",
+    code: `// Encrypted risk check
+await lg.triggerRiskCheck({
+  vaultId,
+  riskState,
+  backingCiphertext,
+  thresholdCiphertext,
+  resultCiphertext
+});
+
+// Result: encrypted boolean
+// If false -> circuit breaker fires
+// Protocol frozen before public`,
   },
 ];
 
@@ -66,7 +86,7 @@ export function HowItWorksSection() {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         {/* Header */}
         <div className="mb-20">
-          <p className="text-sm font-mono text-primary mb-3">// TECHNOLOGY</p>
+          <p className="text-sm font-mono text-primary mb-3">// DEMO FLOW</p>
           <h2
             className={`text-3xl lg:text-5xl font-semibold tracking-tight mb-6 transition-all duration-700 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
@@ -74,7 +94,7 @@ export function HowItWorksSection() {
           >
             <span className="text-balance">Three steps to</span>
             <br />
-            <span className="text-balance">production.</span>
+            <span className="text-balance">verify collateral.</span>
           </h2>
         </div>
 
@@ -188,9 +208,9 @@ export function HowItWorksSection() {
 
 function highlightCode(line: string): string {
   return line
-    .replace(/(nexus|process|env)/g, '<span class="text-foreground">$1</span>')
-    .replace(/(\.\w+)/g, '<span class="text-primary">$1</span>')
+    .replace(/(lg|LendGuard|await|const|new|if|throw)/g, '<span class="text-foreground">$1</span>')
+    .replace(/(\.\w+|\$\{[^}]+\})/g, '<span class="text-primary">$1</span>')
     .replace(/('.*?'|".*?")/g, '<span class="text-green-400">$1</span>')
     .replace(/(\/\/.*$)/g, '<span class="text-muted-foreground/50">$1</span>')
-    .replace(/(\{|\}|\(|\)|\[|\]|:)/g, '<span class="text-muted-foreground/70">$1</span>');
+    .replace(/(\{|\}|\(|\)|\[|\]|:|,|->|=|>=)/g, '<span class="text-muted-foreground/70">$1</span>');
 }

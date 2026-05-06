@@ -1,0 +1,19 @@
+[toolchain]
+anchor_version = "0.31.1"
+
+[workspace]
+members = ["."]
+
+[programs.devnet]
+lendguard_proof_vault = "FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X"
+
+[registry]
+url = "https://api.dev.anchor-lang.com"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/lendguard-devnet.json"
+
+[scripts]
+test = "yarn run ts-mocha --timeout 1000000 tests/**/*.ts"
+

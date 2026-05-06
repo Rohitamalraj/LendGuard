@@ -1,0 +1,35 @@
+[package]
+name = "lendguard-proof-vault"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+# Enable this feature to compile the Encrypt FHE DSL definitions (requires
+# dwallet-labs/encrypt-pre-alpha crate). Off by default so the core Solana
+# program can be compiled and deployed without the pre-alpha dependency.
+fhe = ["encrypt-dsl"]
+
+[dependencies]
+anchor-lang = "0.31.1"
+
+# Encrypt FHE DSL — only needed for the check_backing_ratio circuit definition.
+# The on-chain program uses a mocked EBool reader; the real executor runs off-chain.
+encrypt-dsl = { package = "encrypt-solana-dsl", git = "https://github.com/dwallet-labs/encrypt-pre-alpha", optional = true }
+
+# Utilities
+thiserror = "1.0"
+
+[dev-dependencies]
+solana-sdk = "=1.18.22"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+overflow-checks = true
+
+# Anchor TypeScript tests are run via `anchor test` using Anchor.toml script:
+#   test = "yarn run ts-mocha --timeout 1000000 tests/**/*.ts"

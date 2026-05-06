@@ -43,12 +43,11 @@ export function CtaSection() {
             <div className="flex items-center justify-between gap-8">
               <div className="max-w-2xl">
                 <h2 className="text-3xl lg:text-5xl font-semibold tracking-tight mb-6 text-background text-balance">
-                  Start building the future, today.
+                  Collateral you can trust.
                 </h2>
 
                 <p className="text-lg text-background/70 mb-8 leading-relaxed max-w-lg">
-                  Join thousands of teams shipping faster with Nexus. 
-                  Free to start, scales with you.
+                  LendGuard prevents unverified collateral from being accepted and MEV bots from front-running your circuit breaker. It's the infrastructure layer every Solana lending protocol should deploy.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-start gap-4">
@@ -56,7 +55,7 @@ export function CtaSection() {
                     size="lg"
                     className="bg-background hover:bg-background/90 text-foreground px-6 h-12 text-sm font-medium group"
                   >
-                    Get started free
+                    View Demo
                     <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-0.5" />
                   </Button>
                   <Button
@@ -64,12 +63,12 @@ export function CtaSection() {
                     variant="outline"
                     className="h-12 px-6 text-sm font-medium border-background/30 text-background hover:bg-background/10 bg-transparent"
                   >
-                    Talk to sales
+                    Read Docs
                   </Button>
                 </div>
 
                 <p className="text-sm text-background/50 mt-6 font-mono">
-                  No credit card required
+                  Devnet demo live now
                 </p>
               </div>
               
