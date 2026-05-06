@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
@@ -60,9 +61,7 @@ export function Navigation() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="text-muted-foreground pointer-events-none">
-              Sign in
-            </Button>
+            <ConnectButton />
             <Button
               size="sm"
               className="bg-foreground hover:bg-foreground/90 text-background"
@@ -104,9 +103,9 @@ export function Navigation() {
               </a>
             ))}
             <div className="flex flex-col gap-2 pt-4 mt-2 border-t border-border/50">
-              <Button variant="ghost" className="justify-start text-muted-foreground pointer-events-none">
-                Sign in
-              </Button>
+              <div className="px-1">
+                <ConnectButton />
+              </div>
               <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 Get Started
               </Button>
