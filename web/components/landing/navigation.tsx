@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
@@ -61,11 +61,21 @@ export function Navigation() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
-            <ConnectButton />
+            {/* Solana wallet — shows Solflare, Phantom, etc. */}
+            <WalletMultiButton
+              style={{
+                height: "36px",
+                fontSize: "13px",
+                fontWeight: 500,
+                borderRadius: "8px",
+                background: "hsl(var(--primary))",
+                padding: "0 16px",
+              }}
+            />
             <Button
               size="sm"
               className="bg-foreground hover:bg-foreground/90 text-background"
-              onClick={() => window.location.href = "/demo"}
+              onClick={() => (window.location.href = "/demo")}
             >
               Try Demo
             </Button>
@@ -104,7 +114,16 @@ export function Navigation() {
             ))}
             <div className="flex flex-col gap-2 pt-4 mt-2 border-t border-border/50">
               <div className="px-1">
-                <ConnectButton />
+                <WalletMultiButton
+                  style={{
+                    width: "100%",
+                    height: "40px",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    borderRadius: "8px",
+                    background: "hsl(var(--primary))",
+                  }}
+                />
               </div>
               <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 Get Started
