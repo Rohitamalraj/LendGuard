@@ -80,7 +80,7 @@ export function buildInitialDemoState(
     riskStatePda: riskStatePda.toBase58(),
     protocolStatePda: protocolStatePda.toBase58(),
     proofStatus: "PENDING",
-    depositedAmount: 0n,
+    depositedAmount: BigInt(0),
     backingRatio: 100,
     frozen: false,
     lastEvent: "",

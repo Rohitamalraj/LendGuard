@@ -10,6 +10,9 @@ publish = false
 # program can be compiled and deployed without the pre-alpha dependency.
 fhe = ["encrypt-dsl"]
 
+# Devnet mode: Skip strict MessageApproval validation for testing
+devnet = []
+
 [dependencies]
 anchor-lang = "0.31.1"
 

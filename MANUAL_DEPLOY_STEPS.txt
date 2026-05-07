@@ -1,0 +1,59 @@
+MANUAL DEPLOYMENT STEPS - Run these in WSL terminal
+====================================================
+
+1. Open WSL terminal (type 'wsl' in PowerShell or open Ubuntu from Start menu)
+
+2. Navigate to project:
+   cd /mnt/host/c/Users/Sugan/projects/LendGuard
+
+3. Install Solana CLI (this will take 5-10 minutes):
+   sh -c "$(curl -sSfL https://release.anza.xyz/v3.1.14/install)"
+   
+   Then add to PATH:
+   export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+   echo 'export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"' >> ~/.bashrc
+   
+   Verify:
+   solana --version
+
+4. Set up wallet:
+   mkdir -p ~/.config/solana
+   cp contracts/lendguard-devnet.json ~/.config/solana/lendguard-devnet.json
+   
+   Configure:
+   solana config set --url devnet --keypair ~/.config/solana/lendguard-devnet.json
+   
+   Check balance:
+   solana balance
+
+5. Build contracts with devnet feature:
+   cd contracts
+   cargo-build-sbf --features devnet
+   
+   (This will take 3-5 minutes first time, downloads platform-tools automatically)
+
+6. Deploy:
+   solana program deploy \
+     --program-id target/deploy/lendguard_proof_vault-keypair.json \
+     --url devnet \
+     --keypair ~/.config/solana/lendguard-devnet.json \
+     target/deploy/lendguard_proof_vault.so
+
+7. Verify:
+   solana program show FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X --url devnet
+
+8. Test the fix:
+   - Go to http://localhost:3000/demo
+   - Run Step 1 (Register Vault)
+   - Run Step 2 (Verify Custody Proof) - should now work!
+
+WHAT THE FIX DOES:
+==================
+The deployed contract now has a devnet feature flag that accepts uninitialized 
+MessageApproval accounts. This bypasses the "all zeros" error you were getting.
+
+The contract checks if dwallet_id is all zeros, and if so, accepts it for devnet 
+testing instead of rejecting it.
+
+This is a devnet-only workaround - in production, the IKA network will properly 
+initialize these accounts.

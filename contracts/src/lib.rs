@@ -125,6 +125,14 @@ pub mod lendguard_proof_vault {
     ) -> Result<()> {
         instructions::close_vault(ctx)
     }
+
+    /// DevNet ONLY: Initialize a MessageApproval account with test data
+    pub fn initialize_test_message_approval(
+        ctx: Context<InitializeTestMessageApproval>,
+        dwallet_id: [u8; 32],
+    ) -> Result<()> {
+        instructions::initialize_test_message_approval(ctx, dwallet_id)
+    }
 }
 
 // Re-export for visibility

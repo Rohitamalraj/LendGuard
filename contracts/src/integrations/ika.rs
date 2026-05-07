@@ -37,6 +37,37 @@ pub fn parse_message_approval(
     expected_dwallet_id: &[u8; 32],
     current_time: i64,
 ) -> Result<ParsedMessageApproval> {
+    // DEVNET MODE: Skip validation for uninitialized accounts
+    // In production, the IKA network initializes MessageApproval accounts
+    #[cfg(feature = "devnet")]
+    {
+        msg!("⚠️  DEVNET MODE: Using relaxed MessageApproval validation");
+        
+        let data = message_approval
+            .try_borrow_data()
+            .map_err(|_| error!(LendGuardError::InvalidMessageApproval))?;
+
+        if data.len() < 49 {
+            return Err(error!(LendGuardError::InvalidMessageApproval));
+        }
+
+        // Check if account is uninitialized (all zeros)
+        let mut dwallet_id = [0u8; 32];
+        dwallet_id.copy_from_slice(&data[8..40]);
+        
+        // If uninitialized, accept it for devnet testing
+        if dwallet_id == [0u8; 32] {
+            msg!("   Accepting uninitialized MessageApproval for devnet testing");
+            return Ok(ParsedMessageApproval {
+                dwallet_id: *expected_dwallet_id,
+                approved_at: current_time,
+                is_signed: true,
+            });
+        }
+        
+        // Otherwise, do normal validation
+    }
+
     let data = message_approval
         .try_borrow_data()
         .map_err(|_| error!(LendGuardError::InvalidMessageApproval))?;

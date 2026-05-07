@@ -66,9 +66,9 @@ export function HeroSection() {
           <Button 
             size="lg" 
             className="bg-foreground hover:bg-foreground/90 text-background px-6 h-11 text-sm font-medium group"
-            onClick={() => window.location.href = "/demo"}
+            onClick={() => window.location.href = "/home"}
           >
-            Run the Demo
+            Launch the App
             <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-0.5" />
           </Button>
           <Button 

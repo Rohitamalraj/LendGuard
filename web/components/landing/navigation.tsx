@@ -9,7 +9,7 @@ const navLinks = [
   { name: "Architecture", href: "#features" },
   { name: "How It Works", href: "#how-it-works" },
   { name: "Infrastructure", href: "#infrastructure" },
-  { name: "Demo", href: "/demo" },
+  { name: "Home", href: "/home" },
 ];
 
 export function Navigation() {
@@ -75,9 +75,9 @@ export function Navigation() {
             <Button
               size="sm"
               className="bg-foreground hover:bg-foreground/90 text-background"
-              onClick={() => (window.location.href = "/demo")}
+              onClick={() => (window.location.href = "/home")}
             >
-              Try Demo
+              Launch App
             </Button>
           </div>
 
@@ -125,8 +125,14 @@ export function Navigation() {
                   }}
                 />
               </div>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                Get Started
+              <Button
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  window.location.href = "/home";
+                }}
+              >
+                Launch App
               </Button>
             </div>
           </div>
