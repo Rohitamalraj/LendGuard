@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectWalletButton } from "@/components/wallet/connect-wallet-button";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
@@ -61,7 +61,7 @@ export function Navigation() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-3">
-            <ConnectButton />
+            <ConnectWalletButton />
             <Button
               size="sm"
               className="bg-foreground hover:bg-foreground/90 text-background"
@@ -104,7 +104,7 @@ export function Navigation() {
             ))}
             <div className="flex flex-col gap-2 pt-4 mt-2 border-t border-border/50">
               <div className="px-1">
-                <ConnectButton />
+                <ConnectWalletButton />
               </div>
               <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 Get Started

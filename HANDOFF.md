@@ -22,12 +22,16 @@ LendGuard is a **Solana-native collateral integrity layer** built for the Fronti
 
 ### 2a. Solana Anchor Program — `contracts/`
 
-**Deployed on devnet:**
-- **Program ID:** `FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X`
-- **Deploy tx:** `4cMP868pZ6nB5H7PNV8rtkg2Ew6czMysz4gLJqfFkXbx4aNYD1a2LF8ppi8NbZhv1vzTYx2VWDrWfmDpA8Hc8dGC`
+**Deployed on devnet (Anchor 1.x build):**
+- **Program ID:** `FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X` (unchanged across the v1 upgrade)
+- **Latest upgrade tx (autodetect Encrypt EBool reader):** `3hT5FPEBucLZHj3bbuizZNq78e2SZSpa3p4ebu7Bv8n6EMJvMt1whfZ1GDpV6o3EFmLPQvLzervJDkMptzirW3k8`
+- **Prior upgrade tx (permissionless `unfreeze_protocol_state`):** `48N6Qdxf69k4rnui8TD9LHtX8aRm939DboCaJnujheADiqzk1zSBqPyCT6YN7iGkuMacQS7eKw2HTocXoTHEdtDt`
+- **Prior upgrade tx (real Ika CPI):** `46EMxkn78R5RLZZhgNQtNjnb8taiaGqGNpLkQYVwc5srJZWyo2JJR5dYao373AV76pg2G3p39kcmMkiim2mGGVJp`
+- **Anchor 1.x migration tx:** `2uWb15EGEmBFuSsb17pSFz7ymYqGZDM1NYJJCFKqgRKJpNH6ZBcqdQJjF8fcfSo8jouibfDjan3eDPkV3N9Dbfni`
 - **Authority:** `DwpDbPrB5TzZAEwcB1WjUdfcTjH39uhhY8Wk8W4KfN38` (the devnet wallet)
 - **ProgramData:** `5yNed91zThsgtT7FnohvZhJcb7oAy5xQKyFw9bMPcS7L`
-- **Last deployed slot:** `460542552`
+- **Last deployed slot:** `460747976` (Anchor 1.x build, May 7 2026)
+- **Original v0.31 deploy tx:** `4cMP868pZ6nB5H7PNV8rtkg2Ew6czMysz4gLJqfFkXbx4aNYD1a2LF8ppi8NbZhv1vzTYx2VWDrWfmDpA8Hc8dGC` (slot 460542552)
 
 All 11 instructions are implemented and deployed:
 
@@ -46,6 +50,7 @@ All 11 instructions are implemented and deployed:
 | `circuit_breaker_freeze` | `instructions/circuit_breaker.rs` | Freeze protocol or vault — admin only |
 | `admin_unfreeze` | `instructions/circuit_breaker.rs` | Unfreeze after incident — admin only |
 | `close_vault` | `instructions/close_vault.rs` | Close vault and reclaim rent — only if zero balance |
+| `approve_custody_signature` | `instructions/approve_custody_signature.rs` | **Real Ika CPI** — invokes `ika_dwallet_anchor::DWalletContext::approve_message` via `invoke_signed` to create a 287-byte `MessageApproval` PDA owned by the Ika dWallet program. |
 
 **On-chain account types (PDAs):**
 
@@ -64,11 +69,13 @@ All 11 instructions are implemented and deployed:
 **Error types** — `errors.rs` has 19 custom error codes including `VaultNotVerified`, `ProtocolFrozen`, `ProofExpired`, `DWalletMismatch`, `ArithmeticOverflow`, etc.
 
 **Build setup decisions made:**
-- Removed all unstable pre-alpha git dependencies (`ika-dwallet-anchor`, `encrypt-anchor`, etc.) — they were not needed because adapters work with raw `AccountInfo`
-- `anchor-lang = "0.31.1"` (stable, matches deployed CLI)
-- FHE circuit gated behind `#[cfg(feature = "fhe")]` — build without the pre-alpha crate by default
-- `overflow-checks = true` in release profile (Anchor requirement)
-- Platform-tools v1.52 required for `cargo-build-sbf` (manually downloaded to `~/.cache/solana/v1.52/`)
+- **Anchor 1.x migration completed (May 7, 2026).** Both `ika-dwallet-anchor` and `encrypt-anchor` officially require `anchor-lang = "1"` and `edition = "2024"`, so we migrated. `Cargo.toml` now pulls them in directly so the next round of work can use real CPI.
+- All `AccountInfo<'info>` fields in `#[derive(Accounts)]` rewritten as `UncheckedAccount<'info>` with `/// CHECK:` doc comments (Anchor v1 requirement).
+- The Ika MessageApproval parser (`integrations/ika.rs`) now autodetects the **real 287-byte Ika layout** (discriminator `14` at offset 0) AND the **49-byte demo layout** (`demo_create_message_approval`). The same `parse_message_approval` works for both, so steps 2–3 of the demo will keep working as we transition to real Ika.
+- FHE circuit gated behind `#[cfg(feature = "fhe")]` — build without the pre-alpha crate by default.
+- `overflow-checks = true` in release profile (Anchor requirement).
+- Platform-tools v1.52 required for `cargo-build-sbf` (manually downloaded to `~/.cache/solana/v1.52/`).
+- Build command: `cargo build-sbf` directly (Anchor CLI 1.x optional — `avm install 1.0.0` if you want `anchor build`/`anchor test`).
 
 ---
 
@@ -496,10 +503,10 @@ You should see the 6-step demo page. Connect a Phantom/Backpack wallet set to **
 
 | Task | Where | Notes |
 |---|---|---|
-| **Real Ika dWallet creation flow** | `web/lib/lendguard-client.ts` | Call Ika's gRPC to create a real dWallet on devnet. Docs: https://solana-pre-alpha.ika.xyz/ Replace `buildMockMessageApprovalData()` with real Ika proof for the demo. |
-| **Real Encrypt `execute_graph` call** | Frontend / off-chain script | Call Encrypt's executor endpoint `pre-alpha-dev-1.encrypt.ika-network.net:443` with the `check_backing_ratio` circuit. Store result EBool account, then call `trigger_risk_check` on-chain. Docs: https://docs.encrypt.xyz/ |
-| **`initialize_protocol` on devnet** | Script / frontend | The protocol state PDA has not been initialized yet (program is deployed but no accounts created). Someone must call `initialize_protocol` once before anything else works. |
-| **Demo seed script** | `scripts/seed-demo-state.sh` | Create a script that calls `initialize_protocol`, `register_vault`, `initialize_risk_state` so the demo always starts from a clean, known state. |
+| **Wire real Ika `approve_message` in the browser** | ✅ **Shipped** — `contracts/src/instructions/approve_custody_signature.rs`, `web/lib/ika-pda.ts`, `web/lib/ika-flow.ts`, "Real Ika" panel on `web/app/demo/page.tsx` | LendGuard now has its own `approve_custody_signature` instruction that CPIs into Ika `approve_message` via `ika_dwallet_anchor::DWalletContext::approve_message` using `invoke_signed`. Off-chain helper `runRealIkaFlow` orchestrates DKG → derive PDAs → submit tx → request sign. Deployed in upgrade tx `46EMxkn78R5RLZZhgNQtNjnb8taiaGqGNpLkQYVwc5srJZWyo2JJR5dYao373AV76pg2G3p39kcmMkiim2mGGVJp`. **Remaining work:** swap step 2 of the main 6-step demo to use `runRealIkaFlow` instead of `buildDemoCreateMessageApprovalIx`. This also requires step 1 to register the vault with the real dWallet pubkey (so `vault.dwallet_id == messageApproval.dwallet`). |
+| **Real Encrypt `execute_graph` end-to-end** | `contracts/src/instructions/evaluate_risk_graph.rs` (TBD) + `web/app/demo/page.tsx` step 5 | The on-chain reader is already autodetecting (`integrations/encrypt.rs::parse_ebool` accepts both real 100-byte EBool ciphertexts and the demo `byte[0]` format). Three pieces remain: **(1) compile the `check_backing_ratio` FHE graph bytes** — easiest path is a host-side `tools/compile-graph/` Cargo crate that depends on `encrypt-dsl` and dumps the bytes from `check_backing_ratio()` into a `.bin` file (the macro generates this function for you). **(2) Add `evaluate_risk_graph` LendGuard instruction** that wraps `EncryptContext::execute_graph(ix_data, [backing_ct, threshold_ct, result_ct])` (see `chains/solana/program-sdk/anchor/src/lib.rs` and the coin-flip example in `chains/solana/examples/coin-flip/anchor/src/lib.rs` — the same shape we used for Ika `approve_custody_signature`). **(3) Wire into demo step 5** — replace `buildDemoCreateCiphertextIx` for the EBool with the CPI call, then poll `result_ct.status` until it hits `1`. The Encrypt executor writes the result back asynchronously, so polling matches how the executor exposes its work. Pre-alpha caveat: the Encrypt devnet executor may not respond yet (mirrors the Ika gRPC `requestDKG → no on-chain dWallet` situation we hit). |
+| **Compile and ship the `check_backing_ratio` graph bytes** | `contracts/src/fhe/` + `packages/sdk/` | Enable the `fhe` feature, run `cargo build` to generate the graph DAG via `#[encrypt_fn]`, dump the bytes, and embed them in the SDK so the frontend can pass them to `execute_graph`. |
+| **Demo seed script** | `scripts/seed-demo-state.sh` | Optional: wraps `initialize_protocol` (already callable from the demo on first run) so a fresh contributor can prep state without opening the UI. |
 
 ---
 
@@ -660,13 +667,39 @@ Understanding this is essential for the demo and for judge questions:
 | Feature | Status | Details |
 |---|---|---|
 | Anchor program guardrails | ✅ **Real** | Deployed and enforcing all rules on devnet |
-| Ika `MessageApproval` parsing | ✅ **Real schema** | Parser reads the actual account layout. Mock signer in pre-alpha (not 200+ MPC nodes) |
-| Encrypt `EBool` reading | ✅ **Real account read** | Reads ciphertext account byte[0]. Pre-alpha stores plaintext instead of ciphertext |
-| `#[encrypt_fn]` DSL circuit | ✅ **Real syntax** | Same code runs on mainnet with real FHE — zero changes needed |
-| Distributed MPC (Ika) | 🔶 **Mock on pre-alpha** | Single devnet signer, not 200+ validators |
-| Real FHE privacy (Encrypt) | 🔶 **Mock on pre-alpha** | Plaintext on devnet, FHE on mainnet |
+| Encrypt input ciphertexts (step 4) | ✅ **Real network call** | `web/lib/encrypt-client.ts` uses `@encrypt.xyz/pre-alpha-solana-client/grpc-web` to call the live executor at `pre-alpha-dev-1.encrypt.ika-network.net:443`. Backing & threshold ciphertext PDAs are real accounts owned by the Encrypt program (`4ebfzWdKnrnGseuQpezXdG8yCdHqwQ1SSBHD3bWArND8`) — visible on Solana Explorer. |
+| Encrypt `execute_graph` (step 5) | 🔶 **Demo helper for the result, but reader is real** | Inputs are real Encrypt ciphertexts (above). The EBool result is still written by `demo_create_ciphertext`, but the on-chain reader (`integrations/encrypt.rs::parse_ebool`) **autodetects both layouts** — a 100-byte buffer with `fhe_type=EBool (1)` at offset 98 and `status=Verified (1)` at offset 99 triggers the real Encrypt code path; anything else falls back to the demo `byte[0]`. Mirror of what `parse_message_approval` does for Ika. The remaining gap is connecting the two on-chain: a `LendGuard.evaluate_risk_graph` instruction that CPIs into `EncryptContext::execute_graph`. The Encrypt executor watches for these txs and writes back to the result_ct asynchronously. See PRIORITY 2 for the plan. |
+| `#[encrypt_fn]` DSL circuit | ✅ **Real syntax** | `contracts/src/fhe/check_backing_ratio.rs` compiles under the `fhe` feature flag. Same code runs on mainnet — zero changes needed. |
+| Ika `MessageApproval` (step 2 of the 6-step flow) | 🔶 **LendGuard demo helper for the main demo, but real Ika is now wired separately** | The main 6-step demo still calls `buildDemoCreateMessageApprovalIx` (49-byte stand-in) so it works without depending on Ika devnet uptime. **Real Ika is fully wired** in `web/lib/ika-flow.ts` and exposed via the "Real Ika dWallet experiment" panel under the steps — it does live DKG → derive PDAs → submit `approve_custody_signature` (LendGuard CPI → Ika `approve_message`) → `requestSign`. Result: a real 287-byte `MessageApproval` PDA owned by the Ika program. Our parser autodetects both layouts (discriminator `14` = real Ika, otherwise demo). |
+| Anchor framework version | ✅ **1.x** | Migrated May 7, 2026 (program upgrade tx `2uWb15EGEmBFuSsb17pSFz7ymYqGZDM1NYJJCFKqgRKJpNH6ZBcqdQJjF8fcfSo8jouibfDjan3eDPkV3N9Dbfni`). Same program ID. Both `ika-dwallet-anchor` and `encrypt-anchor` are now linked into the program — real CPI is unblocked. |
+| Distributed MPC (Ika) | 🔶 **Mock on pre-alpha** | Even in production-Ika today, signing uses a single mock signer per the dWallet docs disclaimer. |
+| Real FHE privacy (Encrypt) | 🔶 **Mock on pre-alpha** | Pre-alpha is plaintext on-chain (per Encrypt docs). Real FHE lands at mainnet. |
 | Native BTC/ETH custody | 🔶 **Proxied** | devnet SOL used as proxy for cross-chain assets |
+
+### Where the real integration lives
+
+- `contracts/Cargo.toml` — pulls in `anchor-lang = "1"`, `ika-dwallet-anchor`, `ika-system-types`, `encrypt-anchor`, `encrypt-types` directly from the dwallet-labs git repos. The build target is `edition = "2024"`.
+- `contracts/src/integrations/ika.rs` — `parse_message_approval` autodetects both the real 287-byte Ika layout (discriminator `14`, status byte at offset 139) and the legacy 49-byte demo layout. Returns a `ParsedMessageApproval { source: ApprovalSource }` so callers can tell which path was taken.
+- `web/lib/encrypt-client.ts` — gRPC-Web wrapper around `createInput`. Reads endpoint from `NEXT_PUBLIC_ENCRYPT_GRPC_URL` (default: pre-alpha endpoint).
+- `web/lib/ika-client.ts` — gRPC-Web wrapper around the Ika dWallet executor (`requestDkg` / `requestPresign` / `requestSign`). Reads endpoint from `NEXT_PUBLIC_IKA_GRPC_URL`.
+- `web/lib/ika-pda.ts` — Ika program PDA derivations (`deriveIkaCpiAuthorityPda`, `deriveDwalletCoordinatorPda`, `deriveDwalletPda`, `deriveMessageApprovalPda`). Mirrors the seeds used by the dWallet program (sources cited inline).
+- `web/lib/ika-flow.ts` — High-level orchestrator `runRealIkaFlow`: DKG → derive → submit LendGuard `approve_custody_signature` → `requestSign`. Used by the "Real Ika" panel on the demo page.
+- `contracts/src/instructions/approve_custody_signature.rs` — LendGuard instruction that CPIs into Ika `approve_message` via `invoke_signed` (uses `ika_dwallet_anchor::DWalletContext::approve_message`). The CPI authority PDA is `[b"__ika_cpi_authority"]` derived from the LendGuard program ID.
+- `web/scripts/patch-ika-sdk.sh` — Postinstall hook (in `package.json`) that strips `.js` extensions from the published Ika SDK imports so Turbopack can resolve them. Required because the SDK ships `.ts` source with ESM `.js` import paths.
+- `web/app/demo/page.tsx` step 4 — calls `createEncryptInputs([{value: 95}, {value: 85}])` before submitting our `initialize_risk_state` + `update_backing_state` instructions in a single tx.
+- `next.config.mjs` — `transpilePackages` lets Next.js compile both Encrypt and Ika SDK `.ts` sources (which ship in their `exports` field).
+
+### Optional env vars (web/.env.local)
+
+```
+NEXT_PUBLIC_LENDGUARD_PROGRAM=FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X
+NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
+NEXT_PUBLIC_ENCRYPT_GRPC_URL=https://pre-alpha-dev-1.encrypt.ika-network.net:443
+NEXT_PUBLIC_ENCRYPT_PROGRAM=4ebfzWdKnrnGseuQpezXdG8yCdHqwQ1SSBHD3bWArND8
+NEXT_PUBLIC_IKA_GRPC_URL=https://pre-alpha-dev-1.ika.ika-network.net:443
+NEXT_PUBLIC_IKA_PROGRAM=87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY
+```
 
 ---
 
-*Last updated: May 7, 2026. Program deployed at slot 460542552.*
+*Last updated: May 7, 2026 (Real Ika CPI shipped). Program upgrade tx `46EMxkn78R5RLZZhgNQtNjnb8taiaGqGNpLkQYVwc5srJZWyo2JJR5dYao373AV76pg2G3p39kcmMkiim2mGGVJp`. New `approve_custody_signature` instruction performs `invoke_signed` CPI into Ika `approve_message`; off-chain orchestrator `web/lib/ika-flow.ts` runs DKG → derive PDAs → approve → sign. Live test panel on the demo page under the 6 steps. Anchor 1.x stays in place. Real Ika MessageApproval parser in `integrations/ika.rs` autodetects demo (49 bytes) vs real (287 bytes) layouts. Encrypt input ciphertexts already real via `@encrypt.xyz/pre-alpha-solana-client@0.1.1`.*

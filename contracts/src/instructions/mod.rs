@@ -7,6 +7,8 @@ pub mod update_backing_state;
 pub mod trigger_risk_check;
 pub mod circuit_breaker;
 pub mod close_vault;
+pub mod demo_helpers;
+pub mod approve_custody_signature;
 
 pub use initialize_protocol::*;
 pub use initialize_risk_state::*;
@@ -17,3 +19,5 @@ pub use update_backing_state::*;
 pub use trigger_risk_check::*;
 pub use circuit_breaker::*;
 pub use close_vault::*;
+pub use demo_helpers::*;
+pub use approve_custody_signature::*;

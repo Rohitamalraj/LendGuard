@@ -21,12 +21,16 @@ pub struct UpdateBackingState<'info> {
     )]
     pub protocol_state: Account<'info, ProtocolStateAccount>,
 
-    /// The Encrypt program for ciphertext creation
-    pub encrypt_program: AccountInfo<'info>,
+    /// CHECK: Encrypt program (placeholder until full CPI lands; not invoked
+    /// here — `update_backing_state` only stores the ciphertext pubkey).
+    pub encrypt_program: UncheckedAccount<'info>,
 
-    /// Ciphertext account to store encrypted backing value
+    /// CHECK: Real Encrypt ciphertext account owned by the Encrypt program.
+    /// We never write to it (that's the executor's job); we just record its
+    /// pubkey in `risk_state.backing_ciphertext` so `trigger_risk_check` can
+    /// pass it back as an input to `execute_graph`.
     #[account(mut)]
-    pub backing_ciphertext: AccountInfo<'info>,
+    pub backing_ciphertext: UncheckedAccount<'info>,
 
     /// Oracle or authorized feed that updates backing
     pub oracle: Signer<'info>,
@@ -43,9 +47,12 @@ pub fn update_backing_state(
 ) -> Result<()> {
     let risk_state = &mut ctx.accounts.risk_state;
 
-    // Pre-alpha access control: protocol admin is the only authorized oracle.
+    // Pre-alpha access control: vault owner OR protocol admin can act as
+    // oracle for their own risk state. Production keeps this admin-only so a
+    // single trusted feed updates encrypted backing.
     require!(
-        ctx.accounts.protocol_state.admin == ctx.accounts.oracle.key(),
+        ctx.accounts.protocol_state.admin == ctx.accounts.oracle.key()
+            || ctx.accounts.vault.owner == ctx.accounts.oracle.key(),
         LendGuardError::UnauthorizedCaller
     );
     require!(

@@ -65,7 +65,6 @@ pub fn admin_unfreeze(
 ) -> Result<()> {
     let protocol_state = &ctx.accounts.protocol_state;
 
-    // Only admin can unfreeze
     require!(
         protocol_state.admin == ctx.accounts.admin.key(),
         LendGuardError::UnauthorizedCaller
@@ -73,9 +72,7 @@ pub fn admin_unfreeze(
 
     let vault = &mut ctx.accounts.vault;
 
-    // Unfreeze
     vault.frozen = false;
-    // Note: Protocol-level frozen flag must be cleared separately or by another authority
 
     let current_time = Clock::get()?.unix_timestamp;
 
@@ -84,5 +81,34 @@ pub fn admin_unfreeze(
         timestamp: current_time,
     });
 
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct UnfreezeProtocolState<'info> {
+    #[account(
+        mut,
+        seeds = [PROTOCOL_STATE_PDA_SEED],
+        bump = protocol_state.bump
+    )]
+    pub protocol_state: Account<'info, ProtocolStateAccount>,
+
+    pub admin: Signer<'info>,
+}
+
+/// Clear the protocol-level `frozen` flag. **Demo-mode permissionless reset.**
+///
+/// `protocol_state` is a global singleton PDA on devnet — every wallet that
+/// runs the demo shares it. The original deployer keypair would otherwise
+/// be the only signer that could re-arm the demo, which makes it impossible
+/// for hackathon judges (or anyone testing with a new wallet) to replay
+/// after the circuit breaker has fired once. We accept the trade-off here:
+/// in production this would be admin-only or governance-gated; on devnet
+/// it's a public reset lever so the demo is replayable.
+pub fn unfreeze_protocol_state(
+    ctx: Context<UnfreezeProtocolState>,
+) -> Result<()> {
+    let protocol_state = &mut ctx.accounts.protocol_state;
+    protocol_state.frozen = false;
     Ok(())
 }

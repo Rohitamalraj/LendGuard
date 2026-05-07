@@ -10,8 +10,11 @@ pub struct VerifyCustodyProof<'info> {
     #[account(mut)]
     pub vault: Account<'info, VaultAccount>,
 
-    /// The Ika MessageApproval account containing the signature
-    pub message_approval: AccountInfo<'info>,
+    /// CHECK: Real Ika MessageApproval PDA owned by the dWallet program. Its
+    /// byte layout is validated inside `parse_message_approval` (signer flag,
+    /// dWallet ID, freshness). Not deserialized into an Anchor account because
+    /// it's owned by Ika, not LendGuard.
+    pub message_approval: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub signer: Signer<'info>,

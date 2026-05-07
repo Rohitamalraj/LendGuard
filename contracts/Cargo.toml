@@ -1,35 +1,52 @@
 [package]
 name = "lendguard-proof-vault"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [features]
-# Enable this feature to compile the Encrypt FHE DSL definitions (requires
-# dwallet-labs/encrypt-pre-alpha crate). Off by default so the core Solana
-# program can be compiled and deployed without the pre-alpha dependency.
+# Default off so the program compiles without pulling pre-alpha sources during
+# regular `cargo check`. Build with `cargo build-sbf --features fhe` to compile
+# the Encrypt FHE circuit.
 fhe = ["encrypt-dsl"]
 
-[dependencies]
-anchor-lang = "0.31.1"
+# Anchor v1 idiomatic feature flags — silence `unexpected_cfg` warnings and
+# allow conditional compilation based on Anchor build target.
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build"]
 
-# Encrypt FHE DSL — only needed for the check_backing_ratio circuit definition.
-# The on-chain program uses a mocked EBool reader; the real executor runs off-chain.
+[dependencies]
+# Anchor v1.x — required by both ika-dwallet-anchor and encrypt-anchor.
+anchor-lang = "1"
+
+# Real Ika integration: dWallet program CPI SDK.
+ika-dwallet-anchor = { git = "https://github.com/dwallet-labs/ika-pre-alpha" }
+ika-system-types = { package = "ika-system-types", git = "https://github.com/dwallet-labs/ika-pre-alpha" }
+
+# Real Encrypt integration: FHE program CPI SDK + types.
+encrypt-anchor = { git = "https://github.com/dwallet-labs/encrypt-pre-alpha" }
+encrypt-types = { git = "https://github.com/dwallet-labs/encrypt-pre-alpha", default-features = false }
+
+# Encrypt FHE DSL — produces the compiled graph bytes for execute_graph.
+# Optional because compiling it requires extra deps; real CPI uses the
+# already-deployed Encrypt program.
 encrypt-dsl = { package = "encrypt-solana-dsl", git = "https://github.com/dwallet-labs/encrypt-pre-alpha", optional = true }
 
 # Utilities
 thiserror = "1.0"
 
-[dev-dependencies]
-solana-sdk = "=1.18.22"
-
 [lib]
 crate-type = ["cdylib", "lib"]
 
 [profile.release]
-lto = true
+lto = "fat"
 codegen-units = 1
 overflow-checks = true
 
-# Anchor TypeScript tests are run via `anchor test` using Anchor.toml script:
-#   test = "yarn run ts-mocha --timeout 1000000 tests/**/*.ts"
+# `lints` — silence the SBF cfg warning Anchor macros emit.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

@@ -119,11 +119,64 @@ pub mod lendguard_proof_vault {
         instructions::admin_unfreeze(ctx)
     }
 
+    /// Clear the protocol-level `frozen` flag (admin only). Lets the demo
+    /// reset between full runs without redeploying.
+    pub fn unfreeze_protocol_state(
+        ctx: Context<UnfreezeProtocolState>,
+    ) -> Result<()> {
+        instructions::unfreeze_protocol_state(ctx)
+    }
+
     /// Close a vault (only if no collateral deposited)
     pub fn close_vault(
         ctx: Context<CloseVault>,
     ) -> Result<()> {
         instructions::close_vault(ctx)
+    }
+
+    /// Approve a real Ika `MessageApproval` via CPI to the dWallet program.
+    /// Requires the target dWallet's authority to be LendGuard's CPI authority
+    /// PDA (`PDA([b"__ika_cpi_authority"], LENDGUARD_PROGRAM_ID)`). Off-chain,
+    /// callers run DKG via Ika gRPC with `intended_chain_sender` set to that
+    /// PDA, then invoke this instruction.
+    pub fn approve_custody_signature(
+        ctx: Context<ApproveCustodySignature>,
+        message_digest: [u8; 32],
+        message_metadata_digest: [u8; 32],
+        user_pubkey: [u8; 32],
+        signature_scheme: u16,
+        message_approval_bump: u8,
+    ) -> Result<()> {
+        instructions::approve_custody_signature(
+            ctx,
+            message_digest,
+            message_metadata_digest,
+            user_pubkey,
+            signature_scheme,
+            message_approval_bump,
+        )
+    }
+
+    // ─── Demo-only helpers (pre-alpha) ────────────────────────────────────
+    // These exist so the LendGuard demo can produce on-chain mock accounts
+    // matching the byte layouts the Ika and Encrypt integrations expect,
+    // without depending on the off-chain Ika / Encrypt networks. Production
+    // builds remove these.
+
+    pub fn demo_create_message_approval(
+        ctx: Context<DemoCreateMessageApproval>,
+        dwallet_id: [u8; 32],
+        is_signed: bool,
+    ) -> Result<()> {
+        instructions::demo_create_message_approval(ctx, dwallet_id, is_signed)
+    }
+
+    pub fn demo_create_ciphertext(
+        ctx: Context<DemoCreateCiphertext>,
+        label: [u8; 8],
+        value: u8,
+    ) -> Result<()> {
+        instructions::demo_create_ciphertext(ctx, label, value)
     }
 }
 

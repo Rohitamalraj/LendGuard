@@ -24,18 +24,23 @@ pub struct TriggerRiskCheck<'info> {
     )]
     pub protocol_state: Account<'info, ProtocolStateAccount>,
 
-    /// The Encrypt program
-    pub encrypt_program: AccountInfo<'info>,
+    /// CHECK: Encrypt program (placeholder; full CPI lands in
+    /// `trigger_risk_check_real`).
+    pub encrypt_program: UncheckedAccount<'info>,
 
-    /// Backing ciphertext (input)
-    pub backing_ciphertext: AccountInfo<'info>,
+    /// CHECK: Real Encrypt input ciphertext (backing). Validated by pubkey
+    /// match against `risk_state.backing_ciphertext`.
+    pub backing_ciphertext: UncheckedAccount<'info>,
 
-    /// Threshold ciphertext (input)
-    pub threshold_ciphertext: AccountInfo<'info>,
+    /// CHECK: Real Encrypt input ciphertext (threshold). Validated by pubkey
+    /// match against `risk_state.threshold_ciphertext`.
+    pub threshold_ciphertext: UncheckedAccount<'info>,
 
-    /// Result ciphertext (output, should be EBool)
+    /// CHECK: EBool result ciphertext. In the demo path this is a LendGuard
+    /// helper account whose byte[0] holds the boolean. In the real path it
+    /// will be an Encrypt-owned account written by execute_graph.
     #[account(mut)]
-    pub result_ciphertext: AccountInfo<'info>,
+    pub result_ciphertext: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -53,8 +58,11 @@ pub fn trigger_risk_check(
         risk_state.vault_id == vault.key(),
         LendGuardError::VaultNotFound
     );
+    // Pre-alpha: vault owner OR protocol admin can trigger a risk check on
+    // their own vault. Production keeps this admin-only.
     require!(
-        protocol_state.admin == ctx.accounts.payer.key(),
+        protocol_state.admin == ctx.accounts.payer.key()
+            || vault.owner == ctx.accounts.payer.key(),
         LendGuardError::UnauthorizedCaller
     );
 

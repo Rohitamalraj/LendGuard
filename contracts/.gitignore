@@ -2,3 +2,7 @@
 node_modules/
 target/
 .anchor/
+
+# Solana keypairs — never commit private keys
+lendguard-devnet.json
+*.keypair.json

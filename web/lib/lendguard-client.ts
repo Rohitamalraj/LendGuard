@@ -9,7 +9,7 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
 
-const PROGRAM_ID = new PublicKey(
+export const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_LENDGUARD_PROGRAM_ID ??
     "FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X",
 );
