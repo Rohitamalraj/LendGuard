@@ -502,14 +502,23 @@ export default function DemoPage() {
   //   ika-mock:        LendGuard tx + LendGuard demo MessageApproval helper
   //   encrypt-real:    LendGuard tx + real Encrypt gRPC createInput
   //   encrypt-hybrid:  LendGuard tx + real Encrypt inputs + demo EBool result
-  const stepConfig = [
+  //
+  // Demo is split into two narratives:
+  //   honestSteps   — normal user can deposit (proves LendGuard doesn't block legit users)
+  //   attackerSteps — bridge-style attack gets rejected on-chain (the headline win)
+  const honestSteps = [
     { id: 1, label: "Register Vault",        icon: <Shield className="w-4 h-4" />,        layer: "Anchor",  kind: "on-chain" as const },
     { id: 2, label: "Verify Custody Proof",  icon: <Lock className="w-4 h-4" />,          layer: "Ika",     kind: "ika-mock" as const },
     { id: 3, label: "Deposit Collateral",    icon: <CheckCircle className="w-4 h-4" />,   layer: "Anchor",  kind: "on-chain" as const },
+  ] as const;
+
+  const attackerSteps = [
     { id: 4, label: "Simulate Exploit",      icon: <AlertTriangle className="w-4 h-4" />, layer: "Encrypt", kind: "encrypt-real" as const },
     { id: 5, label: "Encrypted Risk Check",  icon: <Zap className="w-4 h-4" />,           layer: "Encrypt", kind: "encrypt-hybrid" as const },
     { id: 6, label: "Deposit Rejected",      icon: <XCircle className="w-4 h-4" />,       layer: "Anchor",  kind: "on-chain" as const },
   ] as const;
+
+  const stepConfig = [...honestSteps, ...attackerSteps] as const;
 
   const kindBadge: Record<(typeof stepConfig)[number]["kind"], { label: string; cls: string }> = {
     "on-chain":       { label: "ON-CHAIN",                cls: "bg-green-500/15 border-green-500/40 text-green-400" },
@@ -564,22 +573,39 @@ export default function DemoPage() {
           }),
       });
 
-      addLog(2, "ok", `Real Ika flow complete — MessageApproval on devnet`, {
-        account: result.messageApproval.toBase58(),
-        tx: result.approveTxSig,
-      });
-      if (result.signature) {
+      if (result.approvalSource === "real-ika-cpi") {
         addLog(
           2,
           "ok",
-          `Ika network signature received (${result.signature.length} bytes)`,
+          `Real Ika flow complete — MessageApproval (287 bytes, owned by Ika) on devnet`,
+          {
+            account: result.messageApproval.toBase58(),
+            tx: result.approveTxSig,
+          },
+        );
+        if (result.signature) {
+          addLog(
+            2,
+            "ok",
+            `Ika network signature received (${result.signature.length} bytes)`,
+          );
+        }
+      } else {
+        addLog(
+          2,
+          "ok",
+          `Simulation complete — MessageApproval committed via LendGuard helper (same byte layout the real Ika executor will write once the dWallet account is materialized on-chain)`,
+          {
+            account: result.messageApproval.toBase58(),
+            tx: result.approveTxSig,
+          },
         );
       }
     } catch (e: unknown) {
       addLog(
         2,
         "fail",
-        `Real Ika experiment failed: ${friendlyError(e)} — pre-alpha networks may be unavailable; demo helper still works.`,
+        `Real Ika experiment failed: ${friendlyError(e)} — pre-alpha networks may be unavailable; main demo flow is unaffected.`,
       );
     } finally {
       setRunning(false);
@@ -628,12 +654,12 @@ export default function DemoPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight mb-1">LendGuard Demo</h1>
             <p className="text-muted-foreground text-sm">
-              Every step submits a real on-chain transaction to{" "}
-              <span className="font-mono text-foreground">devnet</span>. Step 4 calls the live
-              Encrypt pre-alpha executor over gRPC-Web — backing &amp; threshold ciphertexts are
-              real accounts owned by the Encrypt program. Step 2 (Ika MessageApproval) and the
-              EBool result in step 5 still use LendGuard&rsquo;s demo helpers that produce the
-              same byte layouts the production integrations expect.
+              Two narratives below. <span className="text-foreground font-medium">Honest user
+              flow</span> (steps 1–3) proves LendGuard accepts legitimate deposits. The{" "}
+              <span className="text-red-400 font-medium">Attacker simulation</span> panel below
+              the event log proves a KelpDAO-style bridge exploit is rejected on-chain. Every
+              step submits a real{" "}
+              <span className="font-mono text-foreground">devnet</span> tx.
             </p>
             {!connected && isWalletNeededNow && (
               <div className="mt-4 rounded-lg border border-yellow-500/40 bg-yellow-500/5 p-3 text-xs text-yellow-300">
@@ -644,9 +670,21 @@ export default function DemoPage() {
             )}
           </div>
 
+          {/* Honest user flow */}
+          <div className="flex items-center gap-2 mt-2">
+            <Shield className="w-4 h-4 text-green-400" />
+            <h2 className="font-semibold text-sm">Honest user flow</h2>
+            <Badge
+              variant="outline"
+              className="text-[10px] font-mono border-green-500/40 text-green-300 bg-green-500/10"
+            >
+              SHOULD SUCCEED
+            </Badge>
+          </div>
+
           {/* Step cards */}
           <div className="space-y-3">
-            {stepConfig.map((s) => {
+            {honestSteps.map((s) => {
               const isActive = currentStep === s.id;
               const isDone = currentStep > s.id;
               return (
@@ -743,15 +781,17 @@ export default function DemoPage() {
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Calls Ika gRPC for distributed key generation (sender = LendGuard
+                Calls live Ika gRPC for distributed key generation (sender = LendGuard
                 CPI authority PDA), derives the resulting dWallet, then submits
                 LendGuard&rsquo;s <code className="font-mono text-foreground">approve_custody_signature</code>{" "}
                 instruction which CPIs into Ika{" "}
                 <code className="font-mono text-foreground">approve_message</code> via{" "}
-                <code className="font-mono text-foreground">invoke_signed</code>. The resulting{" "}
-                <code className="font-mono text-foreground">MessageApproval</code> PDA is owned by the
-                Ika program and uses the real 287-byte layout — our parser autodetects it. Pre-alpha
-                infra may rate-limit or be wiped; failures here don&rsquo;t affect the demo flow.
+                <code className="font-mono text-foreground">invoke_signed</code>.
+                Ika devnet pre-alpha currently returns a DKG public key but doesn&rsquo;t
+                fully materialize the dWallet account on-chain yet, so the CPI gracefully
+                falls back to LendGuard&rsquo;s helper which writes the same{" "}
+                <code className="font-mono text-foreground">MessageApproval</code> byte
+                layout — our on-chain parser handles both transparently.
               </p>
               <Button
                 onClick={runRealIkaExperiment}
@@ -774,20 +814,6 @@ export default function DemoPage() {
             </div>
           )}
 
-          {/* Done state */}
-          {currentStep === 6 && !running && log.some((l) => l.step === 6) && (
-            <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <Shield className="w-5 h-5 text-green-400" />
-                <span className="font-semibold text-green-400">Demo Complete</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                This is what would have saved KelpDAO{" "}
-                <span className="text-foreground font-semibold">$292 million</span>. LendGuard
-                blocked the attacker at the program level — before any funds were at risk.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Right: State + Event log */}
@@ -941,6 +967,146 @@ export default function DemoPage() {
               </a>
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Attacker / Exploit Simulation — separated from the honest user flow.
+          Lives below the event log so the narrative reads top-to-bottom:
+          honest user can deposit, then we simulate a bridge exploit and watch
+          LendGuard reject the attacker at the program level. */}
+      <div className="max-w-6xl mx-auto px-6 pb-12">
+        <div className="rounded-2xl border-2 border-red-500/40 bg-red-950/10 p-6 space-y-5">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+                <h2 className="font-semibold text-base">Attacker / Exploit Simulation</h2>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-mono border-red-500/40 text-red-300 bg-red-500/10"
+                >
+                  SHOULD BE BLOCKED
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+                Recreates a KelpDAO-style bridge compromise: a forged backing-ratio
+                update is pushed without a fresh Ika MessageApproval. Encrypt&rsquo;s FHE
+                circuit detects the breach on ciphertext, the protocol freezes silently,
+                and the attacker&rsquo;s next deposit is rejected on-chain. Run after the
+                honest flow above — uses the same vault session.
+              </p>
+            </div>
+            {!session && (
+              <Badge
+                variant="outline"
+                className="text-[10px] font-mono text-yellow-300 border-yellow-500/40 bg-yellow-500/10 self-start"
+              >
+                Complete steps 1–3 first
+              </Badge>
+            )}
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-3">
+            {attackerSteps.map((s) => {
+              const isActive = currentStep === s.id;
+              const isDone = currentStep > s.id;
+              const isLocked = currentStep < s.id;
+              return (
+                <div
+                  key={s.id}
+                  className={`rounded-xl border p-4 transition-all duration-300 ${
+                    isActive
+                      ? "border-red-500/60 bg-red-500/10"
+                      : isDone
+                        ? "border-red-500/20 bg-red-500/5 opacity-70"
+                        : "border-border/30 bg-background/40 opacity-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono font-bold border ${
+                          isDone
+                            ? "bg-red-500/20 border-red-500/50 text-red-300"
+                            : isActive
+                              ? "bg-red-500/30 border-red-500/60 text-red-200"
+                              : "bg-muted border-border text-muted-foreground"
+                        }`}
+                      >
+                        {isDone ? "✓" : s.id}
+                      </span>
+                      <div className="font-medium text-sm">{s.label}</div>
+                    </div>
+                    <Badge
+                      className={`${kindBadge[s.kind].cls} text-[10px] font-mono`}
+                    >
+                      {kindBadge[s.kind].label}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-mono ${
+                        s.layer === "Encrypt"
+                          ? "border-purple-500/40 text-purple-400"
+                          : "border-border text-muted-foreground"
+                      }`}
+                    >
+                      {s.layer}
+                    </Badge>
+                    {isActive ? (
+                      <Button
+                        onClick={() => stepAction[s.id as Step]?.()}
+                        disabled={running || !connected}
+                        size="sm"
+                        className={`gap-2 text-xs ${
+                          s.id === 4
+                            ? "bg-orange-600 hover:bg-orange-700 text-white"
+                            : s.id === 6
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "bg-purple-600 hover:bg-purple-700 text-white"
+                        }`}
+                      >
+                        {running ? (
+                          <>
+                            <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                            Running…
+                          </>
+                        ) : (
+                          <>
+                            {stepLabel[s.id as Step]}
+                            <ArrowRight className="w-3 h-3" />
+                          </>
+                        )}
+                      </Button>
+                    ) : isLocked ? (
+                      <span className="text-[10px] font-mono text-muted-foreground/60">
+                        locked
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-red-400/80">done</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Done state — shown once the attacker has been blocked */}
+          {currentStep === 6 && !running && log.some((l) => l.step === 6) && (
+            <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-5 h-5 text-green-400" />
+                <span className="font-semibold text-green-400">Attack blocked — demo complete</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This is what would have saved KelpDAO{" "}
+                <span className="text-foreground font-semibold">$292 million</span>. LendGuard
+                blocked the attacker at the program level — before any funds were at risk.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

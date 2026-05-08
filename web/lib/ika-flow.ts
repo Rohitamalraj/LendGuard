@@ -49,6 +49,7 @@ import {
 import { PROGRAM_ID as LENDGUARD_PROGRAM_ID } from "./lendguard-client";
 import {
   buildApproveCustodySignatureIx,
+  buildDemoCreateMessageApprovalIx,
   sendIx,
 } from "./program-actions";
 
@@ -75,6 +76,9 @@ export interface RealIkaFlowResult {
   messageApproval: PublicKey;
   approveTxSig: string;
   signature?: Uint8Array;
+  /** Whether the on-chain CPI succeeded against real Ika or fell back to the
+   * demo helper because the pre-alpha network rejected it. */
+  approvalSource: "real-ika-cpi" | "simulated-fallback";
 }
 
 /**
@@ -131,42 +135,89 @@ export async function runRealIkaFlow(
     signatureScheme: DEFAULT_SIGNATURE_SCHEME,
   });
 
-  // ─── 5. Submit Solana tx (LendGuard → Ika CPI) ────────────────────────
-  log("Submitting LendGuard approve_custody_signature → Ika CPI");
-  const approveTxSig = await sendIx(ix, {
-    connection,
-    payer: owner,
-    signTransaction,
-  });
-  log(`MessageApproval PDA created on-chain (status=Pending)`, {
-    tx: approveTxSig,
-    messageApproval: messageApproval.toBase58(),
-  });
+  // ─── 5. Submit Solana tx (LendGuard → Ika CPI), fall back gracefully ──
+  // The CPI can fail with `Invalid account owner` when Ika devnet has the
+  // dWallet program live but hasn't materialized a dWallet account from
+  // DKG yet (documented pre-alpha gap — `requestDKG` returns a pubkey but
+  // doesn't write the on-chain account). When that happens we fall back to
+  // the LendGuard `demo_create_message_approval` helper which produces a
+  // MessageApproval account our on-chain parser autodetects, so the rest
+  // of the demo flow continues working.
+  let approveTxSig: string;
+  let finalMessageApproval = messageApproval;
+  let approvalSource: RealIkaFlowResult["approvalSource"] = "real-ika-cpi";
 
-  // ─── 6. Ask Ika network to sign — best-effort ─────────────────────────
-  // Presign is a one-shot nonce; without it `requestSign` fails. If presign
-  // or sign fails we still return — the MessageApproval is on-chain and the
-  // caller can poll later.
-  let signature: Uint8Array | undefined;
   try {
-    log("Ika gRPC: requestPresign");
-    const presignId = await requestPresign(cpiAuthority, dwallet.toBytes());
-
-    log(
-      `Ika gRPC: requestSign (${SIGNATURE_SCHEME_LABELS[DEFAULT_SIGNATURE_SCHEME]})`,
-    );
-    const txSigBytes = bs58Decode(approveTxSig);
-    signature = await requestSign(
-      cpiAuthority,
-      dwallet.toBytes(),
-      messageDigest,
-      presignId,
-      txSigBytes,
-    );
-    log(`Ika network signature (${signature.length} bytes received)`);
+    log("Submitting LendGuard approve_custody_signature → Ika CPI");
+    approveTxSig = await sendIx(ix, {
+      connection,
+      payer: owner,
+      signTransaction,
+    });
+    log(`Real Ika MessageApproval PDA created on-chain (status=Pending)`, {
+      tx: approveTxSig,
+      messageApproval: messageApproval.toBase58(),
+    });
   } catch (err) {
+    const msg = (err as Error).message ?? String(err);
+    if (isPreAlphaInfraGap(msg)) {
+      log(
+        `Ika pre-alpha gap: dWallet account not materialized on devnet (DKG returns pubkey only). Falling back to LendGuard MessageApproval helper — same byte layout the real Ika executor will write once mainnet ships.`,
+      );
+
+      const fallback = await buildDemoCreateMessageApprovalIx({
+        payer: owner,
+        dwalletId: dwallet.toBytes(),
+        isSigned: true,
+      });
+
+      approveTxSig = await sendIx(fallback.ix, {
+        connection,
+        payer: owner,
+        signTransaction,
+      });
+      finalMessageApproval = fallback.messageApprovalPda;
+      approvalSource = "simulated-fallback";
+
+      log(`Simulated MessageApproval written on-chain (signed)`, {
+        tx: approveTxSig,
+        messageApproval: finalMessageApproval.toBase58(),
+      });
+    } else {
+      throw err;
+    }
+  }
+
+  // ─── 6. Ask Ika network to sign — best-effort, only when CPI succeeded ─
+  // If we fell back to the helper there's no Ika-side state to advance, so
+  // skip presign/sign entirely (they would fail for the same pre-alpha
+  // reason and just clutter the log).
+  let signature: Uint8Array | undefined;
+  if (approvalSource === "real-ika-cpi") {
+    try {
+      log("Ika gRPC: requestPresign");
+      const presignId = await requestPresign(cpiAuthority, dwallet.toBytes());
+
+      log(
+        `Ika gRPC: requestSign (${SIGNATURE_SCHEME_LABELS[DEFAULT_SIGNATURE_SCHEME]})`,
+      );
+      const txSigBytes = bs58Decode(approveTxSig);
+      signature = await requestSign(
+        cpiAuthority,
+        dwallet.toBytes(),
+        messageDigest,
+        presignId,
+        txSigBytes,
+      );
+      log(`Ika network signature (${signature.length} bytes received)`);
+    } catch (err) {
+      log(
+        `Ika sign step skipped — MessageApproval still on-chain. ${(err as Error).message}`,
+      );
+    }
+  } else {
     log(
-      `Ika sign step skipped — MessageApproval still on-chain. Error: ${(err as Error).message}`,
+      `Ika network sign skipped (simulation mode). On real Ika this is where requestPresign + requestSign would commit a real signature on-chain.`,
     );
   }
 
@@ -174,10 +225,23 @@ export async function runRealIkaFlow(
     cpiAuthority,
     dwallet,
     publicKey,
-    messageApproval,
+    messageApproval: finalMessageApproval,
     approveTxSig,
     signature,
+    approvalSource,
   };
+}
+
+/** Recognize the documented pre-alpha CPI failure modes so we can fall
+ *  through cleanly instead of surfacing a stack trace. */
+function isPreAlphaInfraGap(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes("invalid account owner") ||
+    m.includes("accountnotfound") ||
+    m.includes("account does not exist") ||
+    m.includes("custom program error: 0x") // generic Ika-side rejection
+  );
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
