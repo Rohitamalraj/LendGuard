@@ -13,7 +13,7 @@ LendGuard moves trust from bridge relayers to cryptographic proof-of-custody:
 - **Anchor controls** enforce acceptance rules at the program level, not just off-chain monitoring.
 
 ## Core Value Proposition
-- **For lenders (Kamino/Marginfi-style integrations):** reject unverified collateral at deposit time.
+- **For lenders (Marginfi/Mango-style integrations):** reject unverified collateral at deposit time.
 - **For LST/LRT issuers:** expose verifiable collateral backing to integrators.
 - **For institutions:** enable auditable, non-custodial collateral receipts without centralized trust.
 

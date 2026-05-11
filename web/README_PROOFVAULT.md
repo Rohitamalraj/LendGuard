@@ -17,7 +17,7 @@ On April 17, 2026, KelpDAO was exploited for $292 million — the largest DeFi h
 4. Aave's smart contract had no way to verify this was fake
 5. Attackers minted unbacked collateral and drained the protocol before the oracle caught the depeg
 
-**The fundamental problem:** Every lending protocol on Solana trusts bridge messages blindly. No protocol — Aave, Morpho, Kamino, Marginfi — has a smart contract solution to this at the program level.
+**The fundamental problem:** Every lending protocol on Solana trusts bridge messages blindly. No protocol — Aave, Morpho, Marginfi, Mango — has a smart contract solution to this at the program level.
 
 **LendGuard is that solution.**
 
@@ -238,7 +238,7 @@ Vault V1:
 
 ## Integration: 3 Lines of Code
 
-For any Solana lending protocol (Kamino, Marginfi, etc.):
+For any Solana lending protocol (Marginfi, Mango, etc.):
 
 ```typescript
 import { LendGuard } from "@lendguard/sdk";
@@ -846,40 +846,38 @@ EXPLOIT_SIMULATION_DELAY_MS=5000
 
 ---
 
-## Real-World Integration: Kamino Lending
+## Real-World Integration: External Lending Markets
 
-Here's how Kamino would integrate LendGuard:
+Here's how any Solana lending market would integrate LendGuard:
 
 ```typescript
-// kamino-program/src/instructions/deposit_with_LendGuard.rs
+// external-lender/src/instructions/deposit_with_LendGuard.rs
 use LendGuard_cpi::verify_custody_proof;
 
 #[derive(Accounts)]
-pub struct KaminoDepositWithLendGuard<'info> {
-    pub kamino_vault: Account<'info, KaminoVault>,
-    pub LendGuard_vault: Account<'info, LendGuardVault>,  // Cross-program
+pub struct LenderDepositWithLendGuard<'info> {
+    pub lender_vault: Account<'info, LenderVault>,
+    pub LendGuard_vault: Account<'info, LendGuardVault>,
     pub LendGuard_program: Program<'info, LendGuardProgram>,
     pub payer: Signer<'info>,
 }
 
 pub fn deposit_cross_chain_collateral(
-    ctx: Context<KaminoDepositWithLendGuard>,
+    ctx: Context<LenderDepositWithLendGuard>,
     amount: u64,
 ) -> Result<()> {
-    // 1. Verify collateral via LendGuard
     verify_custody_proof(
         ctx.accounts.LendGuard_program.clone(),
         ctx.accounts.LendGuard_vault.clone(),
     )?;
-    
-    // 2. If verification passed, proceed with Kamino deposit
-    ctx.accounts.kamino_vault.deposit(amount)?;
-    
+
+    ctx.accounts.lender_vault.deposit(amount)?;
+
     Ok(())
 }
 ```
 
-Kamino's users can now deposit native BTC backed by Ika dWallet proofs, with encrypted risk monitoring. **$292M protection, built-in.**
+External lenders that wire this CPI in front of their deposit flow let users deposit native BTC backed by Ika dWallet proofs, with encrypted risk monitoring. **$292M protection, built-in.**
 
 ---
 
@@ -905,7 +903,7 @@ Kamino's users can now deposit native BTC backed by Ika dWallet proofs, with enc
 - [x] Smart contract account model and instruction specs
 - [x] SDK API reference with TypeScript examples
 - [x] Setup & demo script instructions
-- [x] Real-world integration example (Kamino)
+- [x] Real-world integration example (external lender CPI)
 - [x] Comparison table: LendGuard vs. existing solutions
 
 ### Demo & Narrative ✅

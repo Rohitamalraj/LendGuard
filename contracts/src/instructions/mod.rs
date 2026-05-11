@@ -9,6 +9,7 @@ pub mod circuit_breaker;
 pub mod close_vault;
 pub mod demo_helpers;
 pub mod approve_custody_signature;
+pub mod lending;
 
 pub use initialize_protocol::*;
 pub use initialize_risk_state::*;
@@ -21,3 +22,4 @@ pub use circuit_breaker::*;
 pub use close_vault::*;
 pub use demo_helpers::*;
 pub use approve_custody_signature::*;
+pub use lending::*;

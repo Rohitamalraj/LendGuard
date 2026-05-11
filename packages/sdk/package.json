@@ -1,7 +1,7 @@
 {
   "name": "@lendguard/sdk",
-  "version": "0.1.0-alpha.0",
-  "description": "TypeScript SDK for integrating LendGuard on Solana",
+  "version": "0.2.0",
+  "description": "TypeScript SDK for the LendGuard native lending protocol on Solana — Ika dWallet collateral provenance, Encrypt FHE health monitoring, and full borrow/repay/liquidate lifecycle.",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -9,17 +9,35 @@
   "files": [
     "dist"
   ],
+  "keywords": [
+    "solana",
+    "defi",
+    "lending",
+    "ika",
+    "encrypt",
+    "fhe",
+    "anchor"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
     "@coral-xyz/anchor": "^0.32.0",
     "@solana/web3.js": "^1.98.0"
   },
+  "peerDependenciesMeta": {
+    "@coral-xyz/anchor": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@solana/web3.js": "^1.98.0",
     "rimraf": "^6.0.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   }
 }

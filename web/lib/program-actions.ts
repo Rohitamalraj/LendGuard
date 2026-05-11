@@ -56,6 +56,13 @@ function u64ToLe(value: bigint): Uint8Array {
   return buf;
 }
 
+function u16ToLe(value: number): Uint8Array {
+  const buf = new Uint8Array(2);
+  const view = new DataView(buf.buffer);
+  view.setUint16(0, value, true);
+  return buf;
+}
+
 function labelToBytes8(s: string): Uint8Array {
   const out = new Uint8Array(8);
   const enc = new TextEncoder().encode(s);
@@ -67,6 +74,29 @@ function labelToBytes8(s: string): Uint8Array {
 
 const DEMO_MSG_APPROVAL_SEED = Buffer.from("demo_msg_approval");
 const DEMO_CIPHERTEXT_SEED = Buffer.from("demo_ciphertext");
+const LENDING_POOL_SEED = Buffer.from("lending_pool");
+const BORROW_POSITION_SEED = Buffer.from("borrow_position");
+const ADMIN_PRICE_FEED_SEED = Buffer.from("admin_price");
+
+// Real SPL token program / associated-token program IDs. Hardcoded to avoid
+// pulling in @solana/spl-token at module load time on the frontend.
+export const TOKEN_PROGRAM_ID = new PublicKey(
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+);
+export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+);
+
+/**
+ * Devnet LGUSD mint that the lending pool was bootstrapped with. Defined in
+ * `contracts/lgusd-mint.json` and re-published here so the frontend doesn't
+ * need to read the file at runtime.
+ */
+export const LGUSD_MINT = new PublicKey(
+  process.env.NEXT_PUBLIC_LGUSD_MINT ??
+    "9NuCY56MCS8FcGZ1i3wjpzffjwb9mnAQdX4CwgNWzhpZ",
+);
+export const LGUSD_DECIMALS = 6;
 
 export function deriveDemoMessageApprovalPda(
   payer: PublicKey,
@@ -84,6 +114,47 @@ export function deriveDemoCiphertextPda(
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [DEMO_CIPHERTEXT_SEED, payer.toBuffer(), Buffer.from(labelToBytes8(label))],
+    PROGRAM_ID,
+  );
+}
+
+/**
+ * Derive a user-owned associated token account for a given mint. Mirrors
+ * `getAssociatedTokenAddressSync` from `@solana/spl-token` without pulling in
+ * that package at runtime.
+ */
+export function deriveAssociatedTokenAddress(
+  owner: PublicKey,
+  mint: PublicKey,
+  allowOwnerOffCurve = false,
+): PublicKey {
+  if (!allowOwnerOffCurve && !PublicKey.isOnCurve(owner.toBuffer())) {
+    throw new Error("ATA owner must be on-curve unless allowOwnerOffCurve is true");
+  }
+  const [pda] = PublicKey.findProgramAddressSync(
+    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  );
+  return pda;
+}
+
+export function deriveLendingPoolPda(borrowAssetMint: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [LENDING_POOL_SEED, borrowAssetMint.toBuffer()],
+    PROGRAM_ID,
+  );
+}
+
+export function deriveAdminPriceFeedPda(assetType: number): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [ADMIN_PRICE_FEED_SEED, Buffer.from([assetType & 0xff])],
+    PROGRAM_ID,
+  );
+}
+
+export function deriveBorrowPositionPda(vaultPda: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [BORROW_POSITION_SEED, vaultPda.toBuffer()],
     PROGRAM_ID,
   );
 }
@@ -365,6 +436,240 @@ export async function buildApproveCustodySignatureIx(params: {
     ],
     data: Buffer.from(data),
   });
+}
+
+// ─── Production lending protocol ─────────────────────────────────────────────
+
+/**
+ * Build an `Associated Token Account create` instruction (idempotent variant).
+ * Used to ensure the borrower / liquidator has an ATA before transferring
+ * LGUSD into it.
+ */
+export function buildCreateAssociatedTokenAccountIx(params: {
+  payer: PublicKey;
+  owner: PublicKey;
+  mint: PublicKey;
+}): { ix: TransactionInstruction; ataAddress: PublicKey } {
+  const ataAddress = deriveAssociatedTokenAddress(params.owner, params.mint, true);
+  // ATA program "createIdempotent" instruction discriminator = 1 byte (0x01).
+  const ix = new TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: params.payer, isSigner: true, isWritable: true },
+      { pubkey: ataAddress, isSigner: false, isWritable: true },
+      { pubkey: params.owner, isSigner: false, isWritable: false },
+      { pubkey: params.mint, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from([1]),
+  });
+  return { ix, ataAddress };
+}
+
+export async function buildInitializeLendingPoolIx(params: {
+  admin: PublicKey;
+  borrowAssetMint: PublicKey;
+  poolTokenVault: PublicKey;
+  assetType: number;
+  initialLiquidity: bigint;
+  initialPriceUsd: bigint; // 8 decimals
+  ltvBasisPoints: number;
+  liquidationThresholdBps: number;
+  liquidationBonusBps: number;
+  baseRateBps: number;
+  rateSlopeBps: number;
+}): Promise<{
+  ix: TransactionInstruction;
+  lendingPoolPda: PublicKey;
+  priceFeedPda: PublicKey;
+}> {
+  const [lendingPoolPda] = deriveLendingPoolPda(params.borrowAssetMint);
+  const [priceFeedPda] = deriveAdminPriceFeedPda(params.assetType);
+  const disc = await sighash("initialize_lending_pool");
+  const data = concat(
+    disc,
+    new Uint8Array([params.assetType & 0xff]),
+    u64ToLe(params.initialLiquidity),
+    u64ToLe(params.initialPriceUsd),
+    u16ToLe(params.ltvBasisPoints),
+    u16ToLe(params.liquidationThresholdBps),
+    u16ToLe(params.liquidationBonusBps),
+    u16ToLe(params.baseRateBps),
+    u16ToLe(params.rateSlopeBps),
+  );
+
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: lendingPoolPda, isSigner: false, isWritable: true },
+      { pubkey: priceFeedPda, isSigner: false, isWritable: true },
+      { pubkey: params.borrowAssetMint, isSigner: false, isWritable: false },
+      { pubkey: params.poolTokenVault, isSigner: false, isWritable: true },
+      { pubkey: params.admin, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+
+  return { ix, lendingPoolPda, priceFeedPda };
+}
+
+export async function buildCloseAdminPriceFeedIx(params: {
+  admin: PublicKey;
+  assetType: number;
+}): Promise<{ ix: TransactionInstruction; priceFeedPda: PublicKey }> {
+  const [priceFeedPda] = deriveAdminPriceFeedPda(params.assetType);
+  const disc = await sighash("close_admin_price_feed");
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: priceFeedPda, isSigner: false, isWritable: true },
+      { pubkey: params.admin, isSigner: true, isWritable: true },
+    ],
+    data: Buffer.from(disc),
+  });
+  return { ix, priceFeedPda };
+}
+
+export async function buildUpdateAdminPriceIx(params: {
+  admin: PublicKey;
+  assetType: number;
+  newPriceUsd: bigint; // 8 decimals
+}): Promise<{ ix: TransactionInstruction; priceFeedPda: PublicKey }> {
+  const [priceFeedPda] = deriveAdminPriceFeedPda(params.assetType);
+  const disc = await sighash("update_admin_price");
+  const data = concat(disc, u64ToLe(params.newPriceUsd));
+
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: priceFeedPda, isSigner: false, isWritable: true },
+      { pubkey: params.admin, isSigner: true, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+
+  return { ix, priceFeedPda };
+}
+
+export async function buildBorrowAgainstCollateralIx(params: {
+  owner: PublicKey;
+  vaultPda: PublicKey;
+  assetType: number;
+  borrowAssetMint: PublicKey;
+  poolTokenVault: PublicKey;
+  borrowerTokenAccount: PublicKey;
+  amount: bigint; // 6 decimals
+  healthCiphertext?: PublicKey;
+}): Promise<{
+  ix: TransactionInstruction;
+  lendingPoolPda: PublicKey;
+  priceFeedPda: PublicKey;
+  borrowPositionPda: PublicKey;
+}> {
+  const [protocolStatePda] = deriveProtocolStatePda();
+  const [lendingPoolPda] = deriveLendingPoolPda(params.borrowAssetMint);
+  const [priceFeedPda] = deriveAdminPriceFeedPda(params.assetType);
+  const [borrowPositionPda] = deriveBorrowPositionPda(params.vaultPda);
+  const disc = await sighash("borrow_against_collateral");
+  const data = concat(
+    disc,
+    u64ToLe(params.amount),
+    (params.healthCiphertext ?? PublicKey.default).toBuffer(),
+  );
+
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.vaultPda, isSigner: false, isWritable: true },
+      { pubkey: protocolStatePda, isSigner: false, isWritable: false },
+      { pubkey: lendingPoolPda, isSigner: false, isWritable: true },
+      { pubkey: priceFeedPda, isSigner: false, isWritable: false },
+      { pubkey: borrowPositionPda, isSigner: false, isWritable: true },
+      { pubkey: params.poolTokenVault, isSigner: false, isWritable: true },
+      { pubkey: params.borrowerTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: params.owner, isSigner: true, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+
+  return { ix, lendingPoolPda, priceFeedPda, borrowPositionPda };
+}
+
+export async function buildRepayBorrowIx(params: {
+  owner: PublicKey;
+  vaultPda: PublicKey;
+  borrowAssetMint: PublicKey;
+  poolTokenVault: PublicKey;
+  borrowerTokenAccount: PublicKey;
+  amount: bigint; // 6 decimals
+}): Promise<{
+  ix: TransactionInstruction;
+  lendingPoolPda: PublicKey;
+  borrowPositionPda: PublicKey;
+}> {
+  const [lendingPoolPda] = deriveLendingPoolPda(params.borrowAssetMint);
+  const [borrowPositionPda] = deriveBorrowPositionPda(params.vaultPda);
+  const disc = await sighash("repay_borrow");
+  const data = concat(disc, u64ToLe(params.amount));
+
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.vaultPda, isSigner: false, isWritable: false },
+      { pubkey: lendingPoolPda, isSigner: false, isWritable: true },
+      { pubkey: borrowPositionPda, isSigner: false, isWritable: true },
+      { pubkey: params.poolTokenVault, isSigner: false, isWritable: true },
+      { pubkey: params.borrowerTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: params.owner, isSigner: true, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+
+  return { ix, lendingPoolPda, borrowPositionPda };
+}
+
+export async function buildLiquidatePositionIx(params: {
+  liquidator: PublicKey;
+  vaultPda: PublicKey;
+  assetType: number;
+  borrowAssetMint: PublicKey;
+  poolTokenVault: PublicKey;
+  liquidatorTokenAccount: PublicKey;
+}): Promise<{
+  ix: TransactionInstruction;
+  lendingPoolPda: PublicKey;
+  priceFeedPda: PublicKey;
+  borrowPositionPda: PublicKey;
+}> {
+  const [protocolStatePda] = deriveProtocolStatePda();
+  const [lendingPoolPda] = deriveLendingPoolPda(params.borrowAssetMint);
+  const [priceFeedPda] = deriveAdminPriceFeedPda(params.assetType);
+  const [borrowPositionPda] = deriveBorrowPositionPda(params.vaultPda);
+  const disc = await sighash("liquidate_position");
+
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.vaultPda, isSigner: false, isWritable: true },
+      { pubkey: protocolStatePda, isSigner: false, isWritable: false },
+      { pubkey: lendingPoolPda, isSigner: false, isWritable: true },
+      { pubkey: priceFeedPda, isSigner: false, isWritable: false },
+      { pubkey: borrowPositionPda, isSigner: false, isWritable: true },
+      { pubkey: params.poolTokenVault, isSigner: false, isWritable: true },
+      { pubkey: params.liquidatorTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: params.liquidator, isSigner: true, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(disc),
+  });
+
+  return { ix, lendingPoolPda, priceFeedPda, borrowPositionPda };
 }
 
 // ─── demo_create_message_approval ────────────────────────────────────────────

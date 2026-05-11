@@ -13,7 +13,7 @@ import type {
   VerifyCustodyProofResult,
 } from "./types.js";
 
-const DEFAULT_PROGRAM_ID = "FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X";
+const DEFAULT_PROGRAM_ID = "GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR";
 
 export class LendGuard {
   readonly connection: unknown;

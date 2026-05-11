@@ -61,4 +61,49 @@ pub enum LendGuardError {
 
     #[msg("Invalid deposit amount")]
     InvalidDepositAmount,
+
+    #[msg("Invalid lending pool parameter")]
+    InvalidLendingPoolParameter,
+
+    #[msg("Invalid borrow amount")]
+    InvalidBorrowAmount,
+
+    #[msg("Insufficient pool liquidity")]
+    InsufficientPoolLiquidity,
+
+    #[msg("Borrow would exceed collateral LTV")]
+    BorrowExceedsCollateralLtv,
+
+    #[msg("Borrow position has outstanding debt")]
+    OutstandingDebt,
+
+    #[msg("Invalid repay amount")]
+    InvalidRepayAmount,
+
+    #[msg("Price feed is stale")]
+    PriceFeedStale,
+
+    #[msg("Position is healthy and cannot be liquidated")]
+    PositionHealthy,
+
+    #[msg("Position has no outstanding debt")]
+    NoOutstandingDebt,
+
+    #[msg("Liquidator cannot liquidate their own position")]
+    SelfLiquidation,
+
+    #[msg("Pool token vault mismatch")]
+    PoolTokenVaultMismatch,
+
+    #[msg("Borrow asset mint mismatch")]
+    BorrowAssetMintMismatch,
+
+    #[msg("Token account owner mismatch")]
+    TokenAccountOwnerMismatch,
+
+    #[msg("Insufficient collateral lamports for liquidation")]
+    InsufficientCollateralLamports,
+
+    #[msg("Encrypted liquidation gate did not authorise the liquidation")]
+    LiquidationNotAuthorised,
 }

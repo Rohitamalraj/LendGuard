@@ -12,7 +12,7 @@ The lending protocol trusts that message blindly — it has no way to verify the
 
 Attacker compromises the bridge validator → forges a message → mints unbacked collateral → drains the protocol
 
-No existing lending protocol — Aave, Morpho, Kamino, or any other — has a solution to this at the smart contract level. ProofVault is that solution.
+No existing lending protocol — Aave, Morpho, or any other — has a solution to this at the smart contract level. ProofVault is that solution.
 
 What ProofVault Does
 ProofVault is a cryptographic collateral verification layer built on Solana that uses two primitives unavailable anywhere else:
@@ -69,7 +69,7 @@ circuit_breaker_freeze() → if EBool = false → protocol.frozen = true
 The circuit breaker is proactive, not reactive. It fires before the backing ratio is visible to the public — the opposite of every DeFi security system today.
 
 Who Uses ProofVault
-Primary users — Lending protocols: Kamino, Marginfi, or any Solana lender integrating ProofVault as a collateral acceptance module. Instead of trusting a bridge oracle, they call ProofVault's verify_custody_proof() before accepting any cross-chain asset.
+Primary users — Lending protocols: Marginfi, Mango, or any Solana lender integrating ProofVault as a collateral acceptance module. Instead of trusting a bridge oracle, they call ProofVault's verify_custody_proof() before accepting any cross-chain asset.
 
 Secondary users — LRT/LST issuers: Protocols like KelpDAO, EtherFi, or Lido can use ProofVault to prove their backing to any lending market — turning their token from a trust-based claim into a cryptographically provable asset.
 

@@ -5,16 +5,91 @@
 
 ---
 
+## 0. Production-readiness milestone (May 9 2026)
+
+The codebase has moved from a hackathon collateral-integrity demo to a fully
+functional native lending protocol. This section is the **current** state of
+truth — the rest of the document is older context.
+
+### What's live on devnet (program `GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR`)
+
+| Concern | Status |
+|---|---|
+| Real LGUSD SPL mint, mint authority = lending_pool PDA | ✅ |
+| Pool token vault (PDA-owned ATA, seeded with 1,000 LGUSD) | ✅ |
+| `borrow_against_collateral` does real SPL `Transfer` CPI to borrower's ATA | ✅ |
+| `repay_borrow` does real SPL `Transfer` CPI back to pool vault | ✅ |
+| `liquidate_position` (permissionless, repays debt + seizes collateral with bonus) | ✅ |
+| Aave-style scaled-debt accounting + utilisation-based interest accrual | ✅ |
+| Multi-asset price feeds (BTC + ETH + SOL) | ✅ |
+| Encrypt FHE health-factor ciphertext stored on every borrow position | ✅ |
+| `/lend` UI: pool stats, borrow, repay, liquidate, encrypted-health badge, live event subscription | ✅ |
+| `@lendguard/sdk@0.2.0` with builders + decoders + math + tests (23 passing) | ✅ |
+| GitHub Actions CI (SDK + web + contracts) | ✅ |
+| Multisig upgrade-authority transfer script + ops runbook | ✅ |
+| Security self-audit checklist (`docs/SECURITY_AUDIT_CHECKLIST.md`) | ✅ |
+| On-chain Encrypt CPI EBool gate at liquidation | ⚠️ Deferred — pre-alpha Encrypt has no Solana CPI surface yet. Plaintext gate is enforced; encrypted health acts as a parallel privacy/MEV signal. |
+| Mainnet deploy | ❌ Out of scope until external audit. |
+
+### Devnet artefacts (current, May 9 2026)
+
+| Artefact | Address |
+|---|---|
+| Program | `GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR` |
+| Upgrade authority | `AQHbkBSS6oMMEFL7wgDnBnwYBSVRBLk81pQ2iP86yUrc` |
+| LGUSD mint (decimals 6) | `9NuCY56MCS8FcGZ1i3wjpzffjwb9mnAQdX4CwgNWzhpZ` |
+| Lending pool PDA | `ERoDLeqLxNvgT7ELJRdVSye3qgaogjd2MrW8PWeCPAL3` |
+| Pool token vault (PDA-owned ATA) | `D7yZ7H6ZgsQ1NeTJddQnWxfGjYdZodtnNABkE1u1b9YC` |
+| protocol_state PDA | `5xou7zabzaSxyUxzJpXHHghS8chXWXRGDWExfp52gfzb` |
+| BTC price feed | `2MZ2WFagd9qo5B2qH4UMqa3dd5KhWZtRGCVjg6KyTYAY` |
+| ETH price feed | `6vCHFLPnwUJ37yAR2hLiUikzddUcbyqWr9EjLvvZW3yJ` |
+| SOL price feed | `HZbVcrPUY4KZt6Nb1RD61ygUfaD4edeFDv3gsdtkrY2E` |
+
+### Recent upgrade transactions (chronological)
+
+| Phase | Tx |
+|---|---|
+| Fresh deploy (Phase 1: SPL token + liquidate) | `2mQVT4xAYjV16wnm5C127jbp263aXQUYNEJyo51ii9ZaKNF1iFKcTPV9BrWJTMMwsk49bTp5gQiSWfqwjEvkebFu` |
+| Upgrade (Phase 3: interest accrual, scaled debt) | `3vGsnKFmLxyDZwLA6U9jghdAL9YC4D3b7z9DHaheEFKRDnryJ8TK6dzD7kEnABBKEcLNzrFP8Keda4QXzkszLyKL` |
+| Upgrade (Phase 4: `initialize_admin_price_feed` for multi-asset) | `3nsjKz2HL1pENgAQunRYaBA89pmCQxHCoPHDDSAYhisF1dahvh45XvKYKU331adJoE6KHmkn7jFGo5iUfBB8cQYT` |
+
+### How to take this from here to mainnet
+
+1. **External audit.** OtterSec, Halborn, or Neodyme. The self-audit checklist
+   (`docs/SECURITY_AUDIT_CHECKLIST.md`) lists everything an auditor will be
+   looking at.
+2. **Replace `AdminPriceFeed` with a Pyth Pull oracle account.** Layout
+   change requires another redeploy.
+3. **Wait for the Encrypt mainnet CPI.** Until then, the encrypted health
+   factor is privacy-only; the consensus liquidation gate is plaintext.
+4. **Transfer upgrade authority to a multisig** — see
+   `docs/PRODUCTION_OPS.md` and `contracts/scripts/transfer-upgrade-authority.mjs`.
+5. **Publish `@lendguard/sdk@0.2.0` to npm.** Tarball is built and validated
+   (`npm publish --access public` from `packages/sdk/`).
+
+---
+
 ## 1. What Is LendGuard?
 
-LendGuard is a **Solana-native collateral integrity layer** built for the Frontier Hackathon (Encrypt + Ika track).
+LendGuard started as a **collateral integrity layer** that protected external
+lending protocols from bridge-forged ghost collateral, and grew into its own
+**native lending protocol**: every component (LGUSD mint, borrow positions,
+liquidations, interest accrual) runs on top of Ika dWallet collateral
+provenance and Encrypt FHE health monitoring.
 
-**The problem it solves:** Every DeFi lending protocol today accepts cross-chain collateral by trusting a bridge message blindly. On April 17, 2026, KelpDAO was exploited for $292M this way — a compromised LayerZero validator forged a message, Aave accepted ghost collateral, and $190M was drained.
+**The problem it originally solved:** every DeFi lending protocol today accepts
+cross-chain collateral by trusting a bridge message blindly. On April 17 2026
+KelpDAO was exploited for $292M this way — a compromised LayerZero validator
+forged a message, Aave accepted ghost collateral, and $190M was drained.
 
-**The solution:** LendGuard uses two Solana-native primitives:
+**The two Solana-native primitives that make LendGuard work:**
 
-- **Ika dWallets** — 2PC-MPC protocol that produces cryptographically unforgeable custody proofs. The deposit guard reads an Ika `MessageApproval` account on-chain; a compromised validator cannot forge it.
-- **Encrypt FHE** — Fully Homomorphic Encryption that lets the protocol evaluate risk thresholds on encrypted data. Liquidation thresholds are invisible to bots, so the circuit breaker fires *before* bots can front-run it.
+- **Ika dWallets** — 2PC-MPC protocol that produces cryptographically
+  unforgeable custody proofs. The deposit guard reads an Ika `MessageApproval`
+  account on-chain; a compromised validator cannot forge it.
+- **Encrypt FHE** — Fully Homomorphic Encryption that lets the protocol seal
+  every borrow position's health factor (debt, collateral, threshold) so MEV
+  bots can't deterministically front-run liquidations.
 
 ---
 
@@ -22,18 +97,36 @@ LendGuard is a **Solana-native collateral integrity layer** built for the Fronti
 
 ### 2a. Solana Anchor Program — `contracts/`
 
-**Deployed on devnet (Anchor 1.x build):**
-- **Program ID:** `FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X` (unchanged across the v1 upgrade)
-- **Latest upgrade tx (autodetect Encrypt EBool reader):** `3hT5FPEBucLZHj3bbuizZNq78e2SZSpa3p4ebu7Bv8n6EMJvMt1whfZ1GDpV6o3EFmLPQvLzervJDkMptzirW3k8`
-- **Prior upgrade tx (permissionless `unfreeze_protocol_state`):** `48N6Qdxf69k4rnui8TD9LHtX8aRm939DboCaJnujheADiqzk1zSBqPyCT6YN7iGkuMacQS7eKw2HTocXoTHEdtDt`
-- **Prior upgrade tx (real Ika CPI):** `46EMxkn78R5RLZZhgNQtNjnb8taiaGqGNpLkQYVwc5srJZWyo2JJR5dYao373AV76pg2G3p39kcmMkiim2mGGVJp`
-- **Anchor 1.x migration tx:** `2uWb15EGEmBFuSsb17pSFz7ymYqGZDM1NYJJCFKqgRKJpNH6ZBcqdQJjF8fcfSo8jouibfDjan3eDPkV3N9Dbfni`
-- **Authority:** `DwpDbPrB5TzZAEwcB1WjUdfcTjH39uhhY8Wk8W4KfN38` (the devnet wallet)
-- **ProgramData:** `5yNed91zThsgtT7FnohvZhJcb7oAy5xQKyFw9bMPcS7L`
-- **Last deployed slot:** `460747976` (Anchor 1.x build, May 7 2026)
-- **Original v0.31 deploy tx:** `4cMP868pZ6nB5H7PNV8rtkg2Ew6czMysz4gLJqfFkXbx4aNYD1a2LF8ppi8NbZhv1vzTYx2VWDrWfmDpA8Hc8dGC` (slot 460542552)
+**Deployed on devnet (Anchor 1.x build, fresh program — May 9 2026):**
+- **Program ID:** `GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR` (fresh deploy on May 9 2026 with a rotated upgrade authority — old program ID `FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X` is orphaned)
+- **Fresh deploy tx (Phase-1 lending instructions, May 9 2026):** `Rde3UwUPQy31YSPyuwWKni9KmzpV6xaquR2CQ3nXFTnGHCLaAo9qLwmqdgWEnBQrQraNz92Sgpq4oKuaQxZsTNf`
+- **Bootstrap `initialize_protocol` tx:** `3whKD4f4mNNYHFipSMKtZC89KaVxmX2v4TvVpyZ58WBsR3exPd3MgSttNoAjwMwthx3TyBKtV8ycoGzadyxc8J9r`
+- **Bootstrap `initialize_lending_pool` (BTC, $90k, 65% LTV) tx:** `3yAzRnCRqgU9aSr4bHa8ZnAUZ4sCod8xCfVVhhWz4gVNGt8AskDEJqAQ67MwYBNMrDHjHtAA4zZT3v4guwaB2u8x`
+- **Authority:** `AQHbkBSS6oMMEFL7wgDnBnwYBSVRBLk81pQ2iP86yUrc` (rotated devnet wallet, May 9 2026 — previous authority `DwpDbPrB5TzZAEwcB1WjUdfcTjH39uhhY8Wk8W4KfN38` is retired)
+- **ProgramData:** `4Mby1BYNvu9MizaPYCynihb7FM2vg48oEqzEBVDYUBin`
+- **Last deployed slot:** `461014961` (fresh deploy, May 9 2026)
+- **Bootstrapped PDAs:** protocol_state `5xou7zabzaSxyUxzJpXHHghS8chXWXRGDWExfp52gfzb`, lending_pool `31DCy3cbVMLR1G47wb3QrNGLbF1emNoAAN9oxWtH4YmZ`, admin_price_feed `2MZ2WFagd9qo5B2qH4UMqa3dd5KhWZtRGCVjg6KyTYAY`, lgusd_asset `9q1EkutzNDD8jPk7MqModq4kTeo83Z2ZFU3QH2DPfKAq`
 
-All 11 instructions are implemented and deployed:
+**Prior history (old program `FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X`, retired):**
+- Latest upgrade tx (autodetect Encrypt EBool reader): `3hT5FPEBucLZHj3bbuizZNq78e2SZSpa3p4ebu7Bv8n6EMJvMt1whfZ1GDpV6o3EFmLPQvLzervJDkMptzirW3k8`
+- Prior upgrade tx (permissionless `unfreeze_protocol_state`): `48N6Qdxf69k4rnui8TD9LHtX8aRm939DboCaJnujheADiqzk1zSBqPyCT6YN7iGkuMacQS7eKw2HTocXoTHEdtDt`
+- Prior upgrade tx (real Ika CPI): `46EMxkn78R5RLZZhgNQtNjnb8taiaGqGNpLkQYVwc5srJZWyo2JJR5dYao373AV76pg2G3p39kcmMkiim2mGGVJp`
+- Anchor 1.x migration tx: `2uWb15EGEmBFuSsb17pSFz7ymYqGZDM1NYJJCFKqgRKJpNH6ZBcqdQJjF8fcfSo8jouibfDjan3eDPkV3N9Dbfni`
+- Original v0.31 deploy tx: `4cMP868pZ6nB5H7PNV8rtkg2Ew6czMysz4gLJqfFkXbx4aNYD1a2LF8ppi8NbZhv1vzTYx2VWDrWfmDpA8Hc8dGC` (slot 460542552)
+
+**Lending instructions (added in the May 9 2026 milestone):**
+
+| Instruction | File | Purpose |
+|---|---|---|
+| `initialize_lending_pool` | `instructions/lending.rs` | Bootstrap LGUSD lending pool with real SPL mint, pool token vault, LTV/threshold/bonus, and rate-model parameters |
+| `initialize_admin_price_feed` | `instructions/lending.rs` | Admin-only — bootstrap a `AdminPriceFeed` for an asset_type (used to add ETH and SOL feeds after BTC) |
+| `update_admin_price` | `instructions/lending.rs` | Admin-only — update the (demo) price feed for an asset; will be replaced by Pyth Pull in production |
+| `close_admin_price_feed` | `instructions/lending.rs` | Admin-only — close a stale price feed PDA so it can be re-initialised under a new layout |
+| `borrow_against_collateral` | `instructions/lending.rs` | Borrow LGUSD against a verified Ika-backed vault; real SPL `Transfer` CPI from pool vault to borrower's ATA. Stores Encrypt ciphertext PDA for the encrypted health factor |
+| `repay_borrow` | `instructions/lending.rs` | Repay (part of) a borrow position; real SPL `Transfer` CPI back to pool vault. Aave-style scaled-debt accounting against `pool.borrow_index` |
+| `liquidate_position` | `instructions/lending.rs` | Permissionless — when health < threshold, anyone can repay the full debt and seize the collateral lamports + a liquidation bonus |
+
+**Original collateral-integrity instructions (stable from earlier):**
 
 | Instruction | File | Purpose |
 |---|---|---|
@@ -59,6 +152,9 @@ All 11 instructions are implemented and deployed:
 | `ProtocolStateAccount` | `[b"protocol_state"]` | `state/protocol_state.rs` |
 | `VaultAccount` | `[b"vault", owner_pubkey, dwallet_id]` | `state/vault_account.rs` |
 | `RiskStateAccount` | `[b"risk_state", vault_pubkey]` | `state/risk_state.rs` |
+| `LendingPool` | `[b"lending_pool", borrow_asset_mint]` | `state/lending_pool.rs` |
+| `AdminPriceFeed` | `[b"admin_price", asset_type]` | `state/admin_price_feed.rs` |
+| `BorrowPosition` | `[b"borrow_position", vault_pda]` | `state/borrow_position.rs` |
 
 **Integration adapters:**
 
@@ -81,31 +177,59 @@ All 11 instructions are implemented and deployed:
 
 ### 2b. TypeScript SDK — `packages/sdk/`
 
-Package: `@lendguard/sdk` v0.1.0-alpha.0
-
-All 9 methods implemented in `src/client.ts`:
+Package: `@lendguard/sdk` v**0.2.0** — fully promoted lending API,
+framework-agnostic (only depends on `@solana/web3.js`).
 
 ```typescript
-import { LendGuard } from "@lendguard/sdk";
+import {
+  buildBorrowAgainstCollateralIx,
+  buildRepayBorrowIx,
+  buildLiquidatePositionIx,
+  buildUpdateAdminPriceIx,
+  readLendingPool,
+  readBorrowPosition,
+  listAllBorrowPositions,
+  currentDebt,
+  isLiquidatable,
+  formatLgUsd,
+  parseLgUsd,
+  LGUSD_MINT_DEVNET,
+  ASSET_BTC,
+} from "@lendguard/sdk";
 
-const lg = new LendGuard({ connection, wallet, cluster: "devnet" });
+// Anchor-style ix builders for every lending instruction:
+const { ix } = await buildBorrowAgainstCollateralIx({
+  owner,
+  vaultPda,
+  assetType: ASSET_BTC,
+  borrowAssetMint: LGUSD_MINT_DEVNET,
+  poolTokenVault: pool.poolTokenVault,
+  borrowerTokenAccount: ataAddress,
+  amount: 25_000_000n, // 25 LGUSD
+  healthCiphertext, // optional Encrypt FHE PDA
+});
 
-await lg.initializeProtocol();
-await lg.registerVault({ dwalletId, assetType: "BTC" });
-await lg.initializeRiskState({ vaultId, thresholdCiphertext });
-await lg.verifyCustodyProof({ vaultId, expectedDwalletId, messageApproval });
-await lg.depositCollateral({ vaultId, protocolState, amount });
-await lg.updateBackingState({ vaultId, riskState, backingCiphertext, newBackingAmount });
-await lg.triggerRiskCheck({ vaultId, riskState, backingCiphertext, thresholdCiphertext, resultCiphertext });
-await lg.circuitBreakerFreeze({ protocolState, caller, reason });
-await lg.adminUnfreeze({ vaultId, protocolState });
+// Account decoders + on-chain readers:
+const { pool } = await readLendingPool(connection);
+const debt = currentDebt(position.principal, pool.borrowIndex);
 ```
 
-- If `config.program` (an Anchor program client) is provided, methods make real on-chain calls.
-- If `config.program` is omitted, methods return mock values — useful for UI dev without a wallet.
-- `src/types.ts` has all TypeScript interfaces for params/results.
+The legacy `LendGuard` class is also still exported for backward compat with
+the original collateral-integrity API (`registerVault`, `verifyCustodyProof`,
+etc.).
 
-**Status:** Not yet published to npm. `npm pack --dry-run` passes. Ready to publish.
+**Tests:** 23 unit tests in `packages/sdk/test/lending.test.ts` cover Anchor
+sighash discriminators, PDA derivation, instruction byte layouts, account
+decoder round-trips, and lending math (`currentDebt`, `isLiquidatable`).
+Run with `npm test`.
+
+**Status:** Tarball built and validated by `npm publish --dry-run`. To ship:
+
+```bash
+cd packages/sdk
+npm login   # one-time
+npm publish --access public
+```
 
 ---
 
@@ -261,7 +385,7 @@ solana config get        # confirm settings
 solana balance           # should show ~17 SOL
 ```
 
-This wallet is the **upgrade authority** for the deployed program (`FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X`). You need it to redeploy or upgrade the program.
+This wallet is the **upgrade authority** for the deployed program (`GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR`). You need it to redeploy or upgrade the program.
 
 #### Option B — Create a fresh wallet (if you just want to test, not redeploy)
 
@@ -300,7 +424,7 @@ solana-keygen new --no-bip39-passphrase \
 
 # Print the public key — it should match the program ID in Anchor.toml
 solana-keygen pubkey contracts/target/deploy/lendguard_proof_vault-keypair.json
-# Expected: FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X
+# Expected: GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR
 ```
 
 If the pubkey does NOT match (because you generated a new keypair), you need to update the program ID everywhere:
@@ -407,17 +531,17 @@ The script will:
 
 **Expected final output:**
 ```
-Program Id: FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X
+Program Id: GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR
 Owner: BPFLoaderUpgradeab1e11111111111111111111111
-Data Account: 5yNed91zThsgtT7FnohvZhJcb7oAy5xQKyFw9bMPcS7L
-Authority: DwpDbPrB5TzZAEwcB1WjUdfcTjH39uhhY8Wk8W4KfN38
+Data Account: 4Mby1BYNvu9MizaPYCynihb7FM2vg48oEqzEBVDYUBin
+Authority: AQHbkBSS6oMMEFL7wgDnBnwYBSVRBLk81pQ2iP86yUrc
 ```
 
 ---
 
-### Step 13 — Initialize the protocol on-chain (one-time, run this once)
+### Step 13 — Initialize the protocol on-chain (one-time, already done for the live deploy)
 
-> **This has NOT been done yet.** The program is deployed but the `ProtocolStateAccount` PDA does not exist yet on devnet. Someone must call `initialize_protocol` exactly once before any vault can be created.
+> **Already done for the May 9 2026 fresh deploy.** `protocol_state` PDA `5xou7zabzaSxyUxzJpXHHghS8chXWXRGDWExfp52gfzb` is bootstrapped, plus the BTC `lending_pool`/`admin_price_feed` defaults. If you redeploy under a *new* program ID you must rerun the bootstrap script: `node contracts/scripts/bootstrap-devnet.mjs` (uses `contracts/lendguard-devnet.json` as the admin keypair). It is idempotent — skips PDAs that already exist.
 
 The fastest way is a small script in the `contracts/` directory:
 
@@ -438,7 +562,7 @@ anchor.setProvider(provider);
 
 // Load IDL from built artifact
 const idl = JSON.parse(fs.readFileSync('./target/idl/lendguard_proof_vault.json'));
-const programId = new anchor.web3.PublicKey('FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X');
+const programId = new anchor.web3.PublicKey('GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR');
 const program = new anchor.Program(idl, provider);
 
 (async () => {
@@ -549,19 +673,19 @@ If you need to derive PDAs manually:
 // Protocol State
 const [protocolStatePda] = PublicKey.findProgramAddressSync(
   [Buffer.from("protocol_state")],
-  new PublicKey("FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X")
+  new PublicKey("GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR")
 );
 
 // Vault
 const [vaultPda] = PublicKey.findProgramAddressSync(
   [Buffer.from("vault"), ownerPubkey.toBuffer(), Buffer.from(dwalletIdBytes)],
-  new PublicKey("FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X")
+  new PublicKey("GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR")
 );
 
 // Risk State
 const [riskStatePda] = PublicKey.findProgramAddressSync(
   [Buffer.from("risk_state"), vaultPda.toBuffer()],
-  new PublicKey("FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X")
+  new PublicKey("GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR")
 );
 ```
 
@@ -590,7 +714,7 @@ solana program deploy \
 solana balance --url devnet --keypair ~/.config/solana/lendguard-devnet.json
 
 # Check program on-chain
-solana program show FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X --url devnet
+solana program show GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR --url devnet
 
 # Run integration tests
 cd contracts && anchor test
@@ -692,7 +816,7 @@ Understanding this is essential for the demo and for judge questions:
 ### Optional env vars (web/.env.local)
 
 ```
-NEXT_PUBLIC_LENDGUARD_PROGRAM=FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X
+NEXT_PUBLIC_LENDGUARD_PROGRAM=GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR
 NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
 NEXT_PUBLIC_ENCRYPT_GRPC_URL=https://pre-alpha-dev-1.encrypt.ika-network.net:443
 NEXT_PUBLIC_ENCRYPT_PROGRAM=4ebfzWdKnrnGseuQpezXdG8yCdHqwQ1SSBHD3bWArND8

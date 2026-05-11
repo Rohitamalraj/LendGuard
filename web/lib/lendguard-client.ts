@@ -9,9 +9,11 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import { retryingFetch } from "./rpc-fetch";
+
 export const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_LENDGUARD_PROGRAM_ID ??
-    "FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X",
+    "GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR",
 );
 const RPC_URL =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
@@ -21,7 +23,13 @@ const VAULT_SEED = Buffer.from("vault");
 const PROTOCOL_STATE_SEED = Buffer.from("protocol_state");
 const RISK_STATE_SEED = Buffer.from("risk_state");
 
-export const connection = new Connection(RPC_URL, "confirmed");
+// Shared Connection — uses the retrying fetch transport so the demo's
+// burst of getAccountInfo()/sendTransaction() calls survive transient
+// `Failed to fetch` errors on the public devnet RPC.
+export const connection = new Connection(RPC_URL, {
+  commitment: "confirmed",
+  fetch: retryingFetch,
+});
 
 export function deriveProtocolStatePda(): [PublicKey, number] {
   return PublicKey.findProgramAddressSync([PROTOCOL_STATE_SEED], PROGRAM_ID);

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConnectWalletButton } from "@/components/wallet/connect-wallet-button";
@@ -640,6 +641,12 @@ export default function DemoPage() {
             <Badge variant="outline" className="font-mono text-xs">
               devnet
             </Badge>
+            <Link
+              href="/lend"
+              className="text-xs px-3 py-1.5 rounded-md border border-green-500/40 text-green-300 bg-green-500/5 hover:bg-green-500/10 transition-colors font-mono"
+            >
+              Lending protocol →
+            </Link>
             <ConnectWalletButton />
             <Button variant="ghost" size="sm" onClick={reset} className="gap-2 text-xs">
               <RotateCcw className="w-3 h-3" /> Reset

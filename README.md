@@ -223,7 +223,7 @@ const risk = await lg.triggerRiskCheck({
 
 | Resource | Value |
 |---|---|
-| LendGuard Program | `FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X` |
+| LendGuard Program | `GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR` |
 | Ika Program | `87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY` |
 | Encrypt Program | `4ebfzWdKnrnGseuQpezXdG8yCdHqwQ1SSBHD3bWArND8` |
 | Ika gRPC | `pre-alpha-dev-1.ika.ika-network.net:443` |

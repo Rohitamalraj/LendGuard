@@ -20,7 +20,7 @@ pub use events::*;
 pub use errors::*;
 pub use constants::*;
 
-declare_id!("FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X");
+declare_id!("GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR");
 
 #[program]
 pub mod lendguard_proof_vault {
@@ -155,6 +155,85 @@ pub mod lendguard_proof_vault {
             signature_scheme,
             message_approval_bump,
         )
+    }
+
+    /// Initialize the production lending pool: real LGUSD SPL mint, real
+    /// pool token vault, demo price feed, and rate-model parameters.
+    #[allow(clippy::too_many_arguments)]
+    pub fn initialize_lending_pool(
+        ctx: Context<InitializeLendingPool>,
+        asset_type: u8,
+        initial_liquidity: u64,
+        initial_price_usd: u64,
+        ltv_basis_points: u16,
+        liquidation_threshold_bps: u16,
+        liquidation_bonus_bps: u16,
+        base_rate_bps: u16,
+        rate_slope_bps: u16,
+    ) -> Result<()> {
+        instructions::initialize_lending_pool(
+            ctx,
+            asset_type,
+            initial_liquidity,
+            initial_price_usd,
+            ltv_basis_points,
+            liquidation_threshold_bps,
+            liquidation_bonus_bps,
+            base_rate_bps,
+            rate_slope_bps,
+        )
+    }
+
+    /// Update the demo price feed used by the lending protocol.
+    pub fn update_admin_price(
+        ctx: Context<UpdateAdminPrice>,
+        new_price_usd: u64,
+    ) -> Result<()> {
+        instructions::update_admin_price(ctx, new_price_usd)
+    }
+
+    /// Admin-only: close a stale price feed so it can be re-initialised under a
+    /// new pool layout. Refunds rent to the admin.
+    pub fn close_admin_price_feed(
+        ctx: Context<CloseAdminPriceFeed>,
+    ) -> Result<()> {
+        instructions::close_admin_price_feed(ctx)
+    }
+
+    /// Admin-only: bootstrap a fresh AdminPriceFeed for an asset_type that
+    /// the initial lending_pool did not create (e.g. ETH or SOL added later).
+    pub fn initialize_admin_price_feed(
+        ctx: Context<InitializeAdminPriceFeed>,
+        asset_type: u8,
+        initial_price_usd: u64,
+    ) -> Result<()> {
+        instructions::initialize_admin_price_feed(ctx, asset_type, initial_price_usd)
+    }
+
+    /// Borrow LGUSD against a verified LendGuard vault. CPI transfers tokens
+    /// from the pool vault to the borrower's ATA.
+    pub fn borrow_against_collateral(
+        ctx: Context<BorrowAgainstCollateral>,
+        amount: u64,
+        health_ciphertext: Pubkey,
+    ) -> Result<()> {
+        instructions::borrow_against_collateral(ctx, amount, health_ciphertext)
+    }
+
+    /// Repay (part of) a borrow position. CPI transfers tokens from the
+    /// borrower's ATA back to the pool vault.
+    pub fn repay_borrow(
+        ctx: Context<RepayBorrow>,
+        amount: u64,
+    ) -> Result<()> {
+        instructions::repay_borrow(ctx, amount)
+    }
+
+    /// Liquidate an under-collateralised borrow position. The liquidator
+    /// repays the full debt principal in LGUSD and seizes the collateral
+    /// + a liquidation bonus.
+    pub fn liquidate_position(ctx: Context<LiquidatePosition>) -> Result<()> {
+        instructions::liquidate_position(ctx)
     }
 
     // ─── Demo-only helpers (pre-alpha) ────────────────────────────────────

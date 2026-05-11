@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdk:
+    name: SDK build + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        working-directory: packages/sdk
+        run: npm ci || npm install
+      - name: Build
+        working-directory: packages/sdk
+        run: npm run build
+      - name: Test
+        working-directory: packages/sdk
+        run: npm test
+      - name: Pack tarball (sanity)
+        working-directory: packages/sdk
+        run: npm pack --dry-run
+
+  web:
+    name: Web build + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        working-directory: web
+        run: npm ci || npm install
+      - name: Lint
+        working-directory: web
+        run: npm run lint --if-present
+      - name: Type-check + build
+        working-directory: web
+        run: npm run build
+        env:
+          # Avoid Encrypt gRPC calls during static build by leaving env vars
+          # at their compile-time defaults. The build only needs to type-check.
+          NEXT_PUBLIC_LENDGUARD_PROGRAM: GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR
+
+  contracts:
+    name: Anchor program build (SBF)
+    runs-on: ubuntu-latest
+    # Heavy job — only run on main pushes, manual dispatches, or PRs that
+    # touch the contracts/ tree.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      contains(toJson(github.event.pull_request.changed_files), 'contracts/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: cargo build-sbf
+        working-directory: contracts
+        run: cargo build-sbf
+      - name: Verify program binary
+        run: |
+          ls -la contracts/target/deploy/lendguard_proof_vault.so
+          du -h contracts/target/deploy/lendguard_proof_vault.so

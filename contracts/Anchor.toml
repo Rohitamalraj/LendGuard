@@ -5,7 +5,7 @@ anchor_version = "1.0.0"
 members = ["."]
 
 [programs.devnet]
-lendguard_proof_vault = "FymmJAKSLcadQTjyiGjQW1iyegKLMdHhSND1bDjgZg1X"
+lendguard_proof_vault = "GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR"
 
 [registry]
 url = "https://api.dev.anchor-lang.com"
