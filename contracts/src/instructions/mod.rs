@@ -10,6 +10,10 @@ pub mod close_vault;
 pub mod demo_helpers;
 pub mod approve_custody_signature;
 pub mod lending;
+pub mod register_btc_vault;
+pub mod attest_btc_balance;
+pub mod verify_btc_custody_proof;
+pub mod btc_lending;
 
 pub use initialize_protocol::*;
 pub use initialize_risk_state::*;
@@ -23,3 +27,7 @@ pub use close_vault::*;
 pub use demo_helpers::*;
 pub use approve_custody_signature::*;
 pub use lending::*;
+pub use register_btc_vault::*;
+pub use attest_btc_balance::*;
+pub use verify_btc_custody_proof::*;
+pub use btc_lending::*;

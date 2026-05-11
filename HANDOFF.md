@@ -5,7 +5,7 @@
 
 ---
 
-## 0. Production-readiness milestone (May 9 2026)
+## 0. Production-readiness milestone (updated May 11 2026)
 
 The codebase has moved from a hackathon collateral-integrity demo to a fully
 functional native lending protocol. This section is the **current** state of
@@ -22,8 +22,11 @@ truth — the rest of the document is older context.
 | `liquidate_position` (permissionless, repays debt + seizes collateral with bonus) | ✅ |
 | Aave-style scaled-debt accounting + utilisation-based interest accrual | ✅ |
 | Multi-asset price feeds (BTC + ETH + SOL) | ✅ |
+| Bitcoin testnet collateral path via Ika Secp256k1 dWallets | ✅ |
+| BTC balance keeper (`mempool.space` testnet → `attest_btc_balance`) | ✅ |
+| BTC liquidation broadcaster/finalizer script | ✅ |
 | Encrypt FHE health-factor ciphertext stored on every borrow position | ✅ |
-| `/lend` UI: pool stats, borrow, repay, liquidate, encrypted-health badge, live event subscription | ✅ |
+| `/lend` UI: existing SOL flow + additive Bitcoin testnet collateral section | ✅ |
 | `@lendguard/sdk@0.2.0` with builders + decoders + math + tests (23 passing) | ✅ |
 | GitHub Actions CI (SDK + web + contracts) | ✅ |
 | Multisig upgrade-authority transfer script + ops runbook | ✅ |
@@ -45,6 +48,37 @@ truth — the rest of the document is older context.
 | ETH price feed | `6vCHFLPnwUJ37yAR2hLiUikzddUcbyqWr9EjLvvZW3yJ` |
 | SOL price feed | `HZbVcrPUY4KZt6Nb1RD61ygUfaD4edeFDv3gsdtkrY2E` |
 
+### Bitcoin testnet collateral upgrade (May 11 2026)
+
+The existing SOL/devnet collateral path was **not changed**. A parallel BTC
+testnet path was added using separate account types and PDA seeds.
+
+| Component | Status |
+|---|---|
+| `BtcVaultAccount` | ✅ `contracts/src/state/btc_vault_account.rs` |
+| `BitcoinBalanceAttestation` | ✅ `contracts/src/state/btc_balance_attestation.rs` |
+| `register_btc_vault` | ✅ registers Ika Secp256k1 dWallet + `tb1…` address |
+| `attest_btc_balance` | ✅ admin keeper posts satoshi balance from Bitcoin testnet |
+| `verify_btc_custody_proof` | ✅ verifies real Ika `MessageApproval` against registered dWallet |
+| `borrow_against_btc_collateral` | ✅ mints/transfers LGUSD against fresh attested tBTC balance |
+| `repay_btc_borrow` | ✅ repay + repay-all dust forgiveness + position close |
+| `liquidate_btc_position` | ✅ repays LGUSD and CPI-calls Ika `approve_message` for Bitcoin sighash |
+| `finalize_btc_liquidation` | ✅ keeper finalizes after Bitcoin testnet tx confirmation |
+| `contracts/scripts/btc-balance-keeper.mjs` | ✅ mempool.space testnet poller |
+| `contracts/scripts/btc-liquidation-broadcaster.mjs` | ✅ raw tx broadcast + finalize |
+| `/lend` BTC section | ✅ register, load, verify, borrow, repay |
+
+**Upgrade tx:** `4B5PoTG2DRrwx3qnAN31UtBmGgmuvpN9LhLED7ECnMEpnn9eWGLt941M56ApCSvuHGKNH3Qsk6qyeMa2qfSEjuAt`
+
+**Post-upgrade program state:**
+
+- Program ID: `GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR`
+- ProgramData: `4Mby1BYNvu9MizaPYCynihb7FM2vg48oEqzEBVDYUBin`
+- Last deployed slot: `461667880`
+- Data length: `732520` bytes
+
+See `docs/BTC_COLLATERAL_PATH.md` for the full flow and caveats.
+
 ### Recent upgrade transactions (chronological)
 
 | Phase | Tx |
@@ -52,6 +86,7 @@ truth — the rest of the document is older context.
 | Fresh deploy (Phase 1: SPL token + liquidate) | `2mQVT4xAYjV16wnm5C127jbp263aXQUYNEJyo51ii9ZaKNF1iFKcTPV9BrWJTMMwsk49bTp5gQiSWfqwjEvkebFu` |
 | Upgrade (Phase 3: interest accrual, scaled debt) | `3vGsnKFmLxyDZwLA6U9jghdAL9YC4D3b7z9DHaheEFKRDnryJ8TK6dzD7kEnABBKEcLNzrFP8Keda4QXzkszLyKL` |
 | Upgrade (Phase 4: `initialize_admin_price_feed` for multi-asset) | `3nsjKz2HL1pENgAQunRYaBA89pmCQxHCoPHDDSAYhisF1dahvh45XvKYKU331adJoE6KHmkn7jFGo5iUfBB8cQYT` |
+| Upgrade (BTC testnet collateral path) | `4B5PoTG2DRrwx3qnAN31UtBmGgmuvpN9LhLED7ECnMEpnn9eWGLt941M56ApCSvuHGKNH3Qsk6qyeMa2qfSEjuAt` |
 
 ### How to take this from here to mainnet
 

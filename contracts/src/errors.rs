@@ -106,4 +106,44 @@ pub enum LendGuardError {
 
     #[msg("Encrypted liquidation gate did not authorise the liquidation")]
     LiquidationNotAuthorised,
+
+    // ─── Bitcoin testnet collateral path ─────────────────────────────────
+    #[msg("Invalid Secp256k1 dWallet public key (must be 33 bytes compressed)")]
+    InvalidDwalletPubkey,
+
+    #[msg("Invalid Bitcoin testnet address (must be non-empty bech32 'tb…' under 63 bytes)")]
+    InvalidBitcoinAddress,
+
+    #[msg("Bitcoin balance attestation is stale; ask the keeper to refresh before borrowing")]
+    BitcoinAttestationStale,
+
+    #[msg("Attestation refers to a different vault or address than the one supplied")]
+    BitcoinAttestationMismatch,
+
+    #[msg("Caller is not the authorised BTC balance keeper")]
+    KeeperNotAuthorised,
+
+    #[msg("BTC vault custody proof has not been verified yet")]
+    BtcVaultNotVerified,
+
+    #[msg("BTC vault is frozen")]
+    BtcVaultFrozen,
+
+    #[msg("BTC vault already has an outstanding borrow position")]
+    BtcVaultHasOpenDebt,
+
+    #[msg("BTC liquidation has not been initiated for this position")]
+    BtcLiquidationNotInitiated,
+
+    #[msg("BTC liquidation is already in flight; wait for the broadcaster keeper to finalise")]
+    BtcLiquidationAlreadyInitiated,
+
+    #[msg("Bitcoin tx sighash submitted does not match the one committed on-chain at liquidation time")]
+    BitcoinLiquidationSighashMismatch,
+
+    #[msg("Bitcoin tx confirmations submitted are below the protocol minimum")]
+    BitcoinConfirmationsInsufficient,
+
+    #[msg("Insufficient tBTC collateral for the requested borrow")]
+    InsufficientBtcCollateral,
 }

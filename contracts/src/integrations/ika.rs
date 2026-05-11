@@ -39,8 +39,10 @@ const REAL_MA_DISCRIMINATOR: u8 = 14;
 const REAL_MA_VERSION: u8 = 1;
 const REAL_MA_MIN_LEN: usize = 142; // through signature_len
 const REAL_MA_DWALLET_OFFSET: usize = 2;
+const REAL_MA_SIGNATURE_SCHEME_OFFSET: usize = 98;
 const REAL_MA_STATUS_OFFSET: usize = 139;
 const REAL_MA_STATUS_SIGNED: u8 = 1;
+const REAL_MA_SIGNATURE_SCHEME_SECP256K1: u8 = 1;
 
 /// Demo MessageApproval layout (created by `demo_create_message_approval`):
 ///
@@ -108,6 +110,142 @@ pub fn parse_message_approval(
     }
 
     Err(error!(LendGuardError::InvalidMessageApproval))
+}
+
+/// Auto-detecting parser for the Bitcoin testnet path.
+///
+/// Accepts BOTH:
+///   - The 287-byte real Ika `MessageApproval` (signed via `approve_message` CPI).
+///   - The 49-byte demo `MessageApproval` created by `demo_create_message_approval`
+///     (used when Ika pre-alpha doesn't expose Secp256k1 DKG yet).
+///
+/// For both layouts the 32-byte slot that contains the dWallet identifier is
+/// compared against `BtcVaultAccount.ika_dwallet`, which is itself a Solana
+/// `Pubkey` derived from `(curve_byte, compressed_secp256k1_pubkey)` on the
+/// Ika program. The demo helper writes the dwallet id at bytes 8..40; the
+/// real layout stores it at bytes 2..34.
+pub fn parse_message_approval_for_btc_dwallet(
+    message_approval: &AccountInfo,
+    expected_dwallet: &Pubkey,
+    current_time: i64,
+) -> Result<ParsedMessageApproval> {
+    let data = message_approval
+        .try_borrow_data()
+        .map_err(|_| error!(LendGuardError::InvalidMessageApproval))?;
+
+    if data.is_empty() {
+        return Err(error!(LendGuardError::InvalidMessageApproval));
+    }
+
+    // ── Real Ika layout ───────────────────────────────────────────────────
+    if data[0] == REAL_MA_DISCRIMINATOR && data.len() >= REAL_MA_MIN_LEN {
+        require!(
+            data[1] == REAL_MA_VERSION,
+            LendGuardError::InvalidMessageApproval
+        );
+
+        let mut dwallet_id = [0u8; 32];
+        dwallet_id.copy_from_slice(&data[REAL_MA_DWALLET_OFFSET..REAL_MA_DWALLET_OFFSET + 32]);
+        require!(
+            Pubkey::new_from_array(dwallet_id) == *expected_dwallet,
+            LendGuardError::DWalletMismatch
+        );
+        require!(
+            data[REAL_MA_SIGNATURE_SCHEME_OFFSET] == REAL_MA_SIGNATURE_SCHEME_SECP256K1,
+            LendGuardError::InvalidMessageApproval
+        );
+        require!(
+            data[REAL_MA_STATUS_OFFSET] == REAL_MA_STATUS_SIGNED,
+            LendGuardError::InvalidMessageApproval
+        );
+
+        return Ok(ParsedMessageApproval {
+            dwallet_id,
+            approved_at: 0,
+            is_signed: true,
+            source: ApprovalSource::RealIka,
+        });
+    }
+
+    // ── Demo helper layout (`demo_create_message_approval`) ───────────────
+    if data.len() == DEMO_MA_LEN {
+        let mut dwallet_id = [0u8; 32];
+        dwallet_id.copy_from_slice(&data[DEMO_MA_DWALLET_OFFSET..DEMO_MA_DWALLET_OFFSET + 32]);
+        require!(
+            Pubkey::new_from_array(dwallet_id) == *expected_dwallet,
+            LendGuardError::DWalletMismatch
+        );
+
+        let approved_at = i64::from_le_bytes(
+            data[DEMO_MA_APPROVED_AT_OFFSET..DEMO_MA_APPROVED_AT_OFFSET + 8]
+                .try_into()
+                .map_err(|_| error!(LendGuardError::InvalidMessageApproval))?,
+        );
+        let is_signed = data[DEMO_MA_SIGNED_OFFSET] == 1;
+
+        require!(is_signed, LendGuardError::InvalidMessageApproval);
+        require!(
+            current_time - approved_at <= crate::constants::PROOF_EXPIRY_SECONDS,
+            LendGuardError::ProofExpired
+        );
+
+        return Ok(ParsedMessageApproval {
+            dwallet_id,
+            approved_at,
+            is_signed,
+            source: ApprovalSource::DemoHelper,
+        });
+    }
+
+    Err(error!(LendGuardError::InvalidMessageApproval))
+}
+
+/// Validate a real Ika `MessageApproval` against the Ika `DWallet` account
+/// address instead of LendGuard's legacy 32-byte demo `dwallet_id`.
+///
+/// This is used by the Bitcoin testnet path. Secp256k1 dWallet public keys are
+/// 33 bytes compressed, so the legacy `[u8; 32]` comparison cannot be used.
+/// The real Ika account layout already stores the Solana `DWallet` account
+/// Pubkey at bytes 2..34; that account is the canonical authority object we
+/// register in `BtcVaultAccount.ika_dwallet`.
+pub fn parse_real_message_approval_for_dwallet(
+    message_approval: &AccountInfo,
+    expected_dwallet: &Pubkey,
+) -> Result<ParsedMessageApproval> {
+    let data = message_approval
+        .try_borrow_data()
+        .map_err(|_| error!(LendGuardError::InvalidMessageApproval))?;
+
+    require!(
+        data.len() >= REAL_MA_MIN_LEN
+            && data[0] == REAL_MA_DISCRIMINATOR
+            && data[1] == REAL_MA_VERSION,
+        LendGuardError::InvalidMessageApproval
+    );
+
+    let mut dwallet_id = [0u8; 32];
+    dwallet_id.copy_from_slice(&data[REAL_MA_DWALLET_OFFSET..REAL_MA_DWALLET_OFFSET + 32]);
+    let dwallet_pubkey = Pubkey::new_from_array(dwallet_id);
+
+    require!(
+        dwallet_pubkey == *expected_dwallet,
+        LendGuardError::DWalletMismatch
+    );
+    require!(
+        data[REAL_MA_SIGNATURE_SCHEME_OFFSET] == REAL_MA_SIGNATURE_SCHEME_SECP256K1,
+        LendGuardError::InvalidMessageApproval
+    );
+    require!(
+        data[REAL_MA_STATUS_OFFSET] == REAL_MA_STATUS_SIGNED,
+        LendGuardError::InvalidMessageApproval
+    );
+
+    Ok(ParsedMessageApproval {
+        dwallet_id,
+        approved_at: 0,
+        is_signed: true,
+        source: ApprovalSource::RealIka,
+    })
 }
 
 fn parse_real(

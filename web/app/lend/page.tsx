@@ -21,19 +21,29 @@ import { ConnectWalletButton } from "@/components/wallet/connect-wallet-button";
 import {
   ASSET_BTC,
   currentDebt,
+  formatBtc,
   formatLgUsd,
   formatPriceUsd,
   isLiquidatable,
   listAllBorrowPositions,
   parseLgUsd,
+  readBtcVault,
   readBorrowPosition,
   readDefaultLendingPool,
+  type BitcoinBalanceAttestationAccount,
   type BorrowPositionAccount,
   type BorrowPositionListing,
+  type BtcVaultAccount,
   type LendingPoolAccount,
   type AdminPriceFeedAccount,
 } from "@/lib/lending-client";
 import {
+  buildAttestBtcBalanceIx,
+  buildBorrowAgainstBtcCollateralIx,
+  buildDemoCreateMessageApprovalIx,
+  buildRegisterBtcVaultIx,
+  buildRepayBtcBorrowIx,
+  buildVerifyBtcCustodyProofIx,
   buildBorrowAgainstCollateralIx,
   buildCreateAssociatedTokenAccountIx,
   buildLiquidatePositionIx,
@@ -48,6 +58,12 @@ import {
   sendIx,
   TOKEN_PROGRAM_ID,
 } from "@/lib/program-actions";
+import {
+  BTC_TESTNET_FAUCETS,
+  mempoolAddressUrl,
+  secp256k1PubkeyToTestnetP2WPKH,
+} from "@/lib/btc-address";
+import { bytesToHex, createBtcDwallet } from "@/lib/btc-dwallet";
 import { PROGRAM_ID } from "@/lib/lendguard-client";
 import {
   createEncryptInputs,
@@ -89,6 +105,19 @@ export default function LendPage() {
   const [allPositions, setAllPositions] = useState<BorrowPositionListing[]>([]);
   const [lgUsdBalance, setLgUsdBalance] = useState<bigint>(0n);
   const [amount, setAmount] = useState("25");
+  const [btcIkaDwallet, setBtcIkaDwallet] = useState("");
+  const [btcDwalletPubkeyHex, setBtcDwalletPubkeyHex] = useState("");
+  const [btcAddress, setBtcAddress] = useState("");
+  const [btcVaultInput, setBtcVaultInput] = useState("");
+  const [btcMessageApproval, setBtcMessageApproval] = useState("");
+  const [btcVault, setBtcVault] = useState<BtcVaultAccount | null>(null);
+  const [btcVaultPda, setBtcVaultPda] = useState<PublicKey | null>(null);
+  const [btcAttestation, setBtcAttestation] =
+    useState<BitcoinBalanceAttestationAccount | null>(null);
+  const [btcPosition, setBtcPosition] = useState<BorrowPositionAccount | null>(
+    null,
+  );
+  const [btcBorrowAmount, setBtcBorrowAmount] = useState("25");
   const [running, setRunning] = useState(false);
   const [protocolFrozen, setProtocolFrozen] = useState<boolean | null>(null);
   const [log, setLog] = useState<Log[]>([]);
@@ -268,6 +297,22 @@ export default function LendPage() {
       setPosition(position);
     })();
   }, [connection, selectedVault]);
+
+  // Auto-refresh the loaded BTC vault every 15s so the attestation balance
+  // updates as soon as the keeper posts new satoshis. Inline the read so we
+  // don't depend on the later-declared useCallback (TDZ).
+  useEffect(() => {
+    if (!btcVaultPda) return;
+    const id = window.setInterval(() => {
+      void (async () => {
+        const res = await readBtcVault(connection, btcVaultPda);
+        setBtcVault(res.btcVault);
+        setBtcAttestation(res.btcAttestation);
+        setBtcPosition(res.borrowPosition);
+      })();
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [btcVaultPda, connection]);
 
   const setPrice = async (priceUsd: bigint) => {
     if (!owner || !signTransaction) return;
@@ -484,6 +529,237 @@ export default function LendPage() {
     }
   };
 
+  // ─── BTC testnet collateral handlers ────────────────────────────────────
+
+  const refreshBtcVault = useCallback(
+    async (pdaToLoad?: PublicKey | string) => {
+      const target =
+        pdaToLoad instanceof PublicKey
+          ? pdaToLoad
+          : pdaToLoad
+            ? (() => {
+                try {
+                  return new PublicKey(pdaToLoad);
+                } catch {
+                  return null;
+                }
+              })()
+            : btcVaultPda;
+      if (!target) {
+        setBtcVault(null);
+        setBtcAttestation(null);
+        setBtcPosition(null);
+        return;
+      }
+      const res = await readBtcVault(connection, target);
+      setBtcVaultPda(target);
+      setBtcVault(res.btcVault);
+      setBtcAttestation(res.btcAttestation);
+      setBtcPosition(res.borrowPosition);
+    },
+    [connection, btcVaultPda],
+  );
+
+  function hexToBytes(hex: string): Uint8Array {
+    const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+    if (clean.length % 2 !== 0) throw new Error("hex length must be even");
+    const out = new Uint8Array(clean.length / 2);
+    for (let i = 0; i < out.length; i++) {
+      out[i] = parseInt(clean.substr(i * 2, 2), 16);
+    }
+    return out;
+  }
+
+  const registerBtcVault = async () => {
+    if (!owner || !signTransaction) return;
+    setRunning(true);
+    try {
+      const ikaDwallet = new PublicKey(btcIkaDwallet.trim());
+      const pubkey = hexToBytes(btcDwalletPubkeyHex.trim());
+      if (pubkey.length !== 33) {
+        throw new Error("dWallet pubkey must be 33 bytes (66 hex chars)");
+      }
+      const addr = btcAddress.trim();
+      if (!addr.startsWith("tb1")) {
+        throw new Error("Bitcoin address must be a tb1… testnet address");
+      }
+
+      // 1. register_btc_vault — creates the BtcVaultAccount + attestation PDA.
+      const { ix: registerIx, btcVaultPda: newVaultPda } =
+        await buildRegisterBtcVaultIx({
+          owner,
+          ikaDwallet,
+          dwalletPubkey: pubkey,
+          bitcoinAddress: addr,
+        });
+
+      // 2. demo_create_message_approval — writes a 49-byte MessageApproval blob
+      //    that the on-chain `parse_message_approval_for_btc_dwallet` parser
+      //    accepts (auto-detects between real 287-byte Ika layout and the demo
+      //    helper layout). Stand-in for the Ika `approve_message` CPI while
+      //    Ika pre-alpha gRPC doesn't expose Secp256k1 DKG.
+      const { ix: approveIx, messageApprovalPda } =
+        await buildDemoCreateMessageApprovalIx({
+          payer: owner,
+          dwalletId: ikaDwallet.toBytes(),
+          isSigned: true,
+        });
+
+      // 3. verify_btc_custody_proof — reads the freshly created MessageApproval
+      //    and flips BtcVaultAccount.proof_status to Verified.
+      const verifyIx = await buildVerifyBtcCustodyProofIx({
+        owner,
+        btcVaultPda: newVaultPda,
+        messageApprovalPda,
+      });
+
+      const sig = await sendIx([registerIx, approveIx, verifyIx], {
+        connection,
+        payer: owner,
+        signTransaction,
+      });
+
+      addLog({
+        status: "ok",
+        message: `register + approve + verify confirmed in one tx — tBTC vault ${newVaultPda
+          .toBase58()
+          .slice(0, 8)}… is verified and ready to borrow against (Bitcoin address ${addr.slice(
+          0,
+          12,
+        )}…). Fund this address from a testnet faucet so the keeper can attest its balance.`,
+        tx: sig,
+        account: newVaultPda.toBase58(),
+      });
+      setBtcVaultInput(newVaultPda.toBase58());
+      setBtcMessageApproval(messageApprovalPda.toBase58());
+      await refreshBtcVault(newVaultPda);
+    } catch (e) {
+      addLog({ status: "fail", message: friendlyError(e) });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const verifyBtcVault = async () => {
+    if (!owner || !signTransaction || !btcVaultPda) return;
+    setRunning(true);
+    try {
+      const messageApproval = new PublicKey(btcMessageApproval.trim());
+      const ix = await buildVerifyBtcCustodyProofIx({
+        owner,
+        btcVaultPda,
+        messageApprovalPda: messageApproval,
+      });
+      const sig = await sendIx(ix, {
+        connection,
+        payer: owner,
+        signTransaction,
+      });
+      addLog({
+        status: "ok",
+        message:
+          "verify_btc_custody_proof() confirmed — Ika MessageApproval validates the Secp256k1 dWallet",
+        tx: sig,
+        account: btcVaultPda.toBase58(),
+      });
+      await refreshBtcVault();
+    } catch (e) {
+      addLog({ status: "fail", message: friendlyError(e) });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const borrowBtc = async () => {
+    if (!owner || !signTransaction || !btcVaultPda || !pool) return;
+    setRunning(true);
+    try {
+      const ataAddress = deriveAssociatedTokenAddress(owner, LGUSD_MINT);
+      const ataInfo = await connection.getAccountInfo(ataAddress, "confirmed");
+      const ixs = [];
+      if (!ataInfo) {
+        const { ix: createAtaIx } = buildCreateAssociatedTokenAccountIx({
+          payer: owner,
+          owner,
+          mint: LGUSD_MINT,
+        });
+        ixs.push(createAtaIx);
+      }
+      const { ix, borrowPositionPda } =
+        await buildBorrowAgainstBtcCollateralIx({
+          owner,
+          btcVaultPda,
+          borrowAssetMint: pool.borrowAssetMint,
+          poolTokenVault: pool.poolTokenVault,
+          borrowerTokenAccount: ataAddress,
+          amount: parseLgUsd(btcBorrowAmount),
+        });
+      ixs.push(ix);
+      const sig = await sendIx(ixs, {
+        connection,
+        payer: owner,
+        signTransaction,
+      });
+      addLog({
+        status: "ok",
+        message: `borrow_against_btc_collateral(${btcBorrowAmount} LGUSD) confirmed — backed by attested tBTC`,
+        tx: sig,
+        account: borrowPositionPda.toBase58(),
+      });
+      await refreshBtcVault();
+      if (owner) void refreshLgUsdBalance(owner);
+    } catch (e) {
+      addLog({ status: "fail", message: friendlyError(e) });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const repayBtc = async (all: boolean) => {
+    if (!owner || !signTransaction || !btcVaultPda || !pool || !btcPosition)
+      return;
+    setRunning(true);
+    try {
+      const ataAddress = deriveAssociatedTokenAddress(owner, LGUSD_MINT);
+      const MAX_U64 = (1n << 64n) - 1n;
+      let sendAmount: bigint;
+      if (all) {
+        sendAmount = MAX_U64;
+      } else {
+        const repayAmount = parseLgUsd(btcBorrowAmount);
+        const debtNow = currentDebt(btcPosition.principal, pool.borrowIndex);
+        sendAmount = repayAmount > debtNow ? debtNow : repayAmount;
+      }
+      const ix = await buildRepayBtcBorrowIx({
+        owner,
+        btcVaultPda,
+        borrowAssetMint: pool.borrowAssetMint,
+        poolTokenVault: pool.poolTokenVault,
+        borrowerTokenAccount: ataAddress,
+        amount: sendAmount,
+      });
+      const sig = await sendIx(ix, {
+        connection,
+        payer: owner,
+        signTransaction,
+      });
+      addLog({
+        status: "ok",
+        message: all
+          ? "repay_btc_borrow(MAX) confirmed — tBTC vault freed, position closed"
+          : "repay_btc_borrow() confirmed",
+        tx: sig,
+        account: btcVaultPda.toBase58(),
+      });
+      await refreshBtcVault();
+      if (owner) void refreshLgUsdBalance(owner);
+    } catch (e) {
+      addLog({ status: "fail", message: friendlyError(e) });
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       <div className="border-b border-border/50 bg-background/80 backdrop-blur sticky top-0 z-50">
@@ -632,6 +908,480 @@ export default function LendPage() {
             </div>
           </section>
         </div>
+
+        {/* ─── BTC testnet collateral (Ika Secp256k1) ──────────────────── */}
+        <section className="rounded-xl border border-orange-500/30 bg-gradient-to-br from-orange-500/5 via-card to-card p-6 space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <CircleDollarSign className="w-4 h-4 text-orange-400" />
+              <h2 className="font-semibold text-sm">
+                Bitcoin testnet collateral
+              </h2>
+              <Badge className="bg-orange-500/15 text-orange-300 border-orange-500/30 text-[10px]">
+                Ika Secp256k1
+              </Badge>
+            </div>
+            <div className="text-[10px] font-mono text-muted-foreground">
+              real tBTC custody · BIP143 sighash · 0 wrapping
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Deposit real Bitcoin testnet BTC into an Ika-controlled dWallet,
+            borrow LGUSD against an off-chain balance attestation, and liquidate
+            via a real Bitcoin testnet transaction signed through Ika.
+            Pre-alpha mock signer; tBTC has zero value, so the demo is safe.
+          </p>
+
+          <div className="grid lg:grid-cols-2 gap-4">
+            {/* Register flow */}
+            <div className="rounded-lg border border-border bg-background/40 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] uppercase font-mono text-muted-foreground">
+                  1. Register a BTC vault
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="text-[10px] h-7"
+                  disabled={running}
+                  onClick={async () => {
+                    try {
+                      const bundle = await createBtcDwallet();
+                      setBtcIkaDwallet(bundle.ikaDwallet.toBase58());
+                      setBtcDwalletPubkeyHex(
+                        bytesToHex(bundle.compressedPubkey),
+                      );
+                      setBtcAddress(bundle.bitcoinAddress);
+                      addLog({
+                        status: "ok",
+                        message:
+                          bundle.source === "real-ika"
+                            ? `Real Ika Secp256k1 dWallet created: ${bundle.ikaDwallet
+                                .toBase58()
+                                .slice(0, 8)}… → ${bundle.bitcoinAddress.slice(
+                                0,
+                                12,
+                              )}…`
+                            : `Synthetic Secp256k1 dWallet generated (${
+                                bundle.fallbackReason ?? "Ika pre-alpha gap"
+                              }). dWallet PDA, pubkey, and tb1q… address have all been filled in below — you can now fund the address from a faucet and click register_btc_vault().`,
+                      });
+                    } catch (e) {
+                      addLog({ status: "fail", message: friendlyError(e) });
+                    }
+                  }}
+                  title="One-click: generate a Secp256k1 keypair, derive the Ika dWallet PDA + tb1q… P2WPKH address, fill all three inputs below."
+                >
+                  Generate dWallet ⚡
+                </Button>
+              </div>
+              <input
+                placeholder="Ika dWallet account pubkey (base58)"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-[11px] font-mono"
+                value={btcIkaDwallet}
+                onChange={(e) => setBtcIkaDwallet(e.target.value)}
+              />
+              <input
+                placeholder="Compressed Secp256k1 pubkey (66 hex chars, starts with 02/03)"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-[11px] font-mono"
+                value={btcDwalletPubkeyHex}
+                onChange={(e) => setBtcDwalletPubkeyHex(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <input
+                  placeholder="tb1q… testnet P2WPKH address"
+                  className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-[11px] font-mono"
+                  value={btcAddress}
+                  onChange={(e) => setBtcAddress(e.target.value)}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[10px]"
+                  onClick={() => {
+                    try {
+                      const bytes = hexToBytes(btcDwalletPubkeyHex.trim());
+                      setBtcAddress(secp256k1PubkeyToTestnetP2WPKH(bytes));
+                    } catch (e) {
+                      addLog({ status: "fail", message: friendlyError(e) });
+                    }
+                  }}
+                  disabled={!btcDwalletPubkeyHex}
+                  title="Derive tb1q… P2WPKH address from the compressed Secp256k1 pubkey (BIP141)"
+                >
+                  Derive ↻
+                </Button>
+              </div>
+              <Button
+                onClick={registerBtcVault}
+                disabled={
+                  !connected ||
+                  running ||
+                  !btcIkaDwallet ||
+                  !btcDwalletPubkeyHex ||
+                  !btcAddress
+                }
+                className="w-full text-xs"
+              >
+                register_btc_vault()
+              </Button>
+              <div className="text-[10px] text-muted-foreground space-y-1.5">
+                <p>
+                  Click <b>Generate dWallet ⚡</b> above to auto-fill all
+                  three fields. The button runs Ika DKG with curve{" "}
+                  <code>Secp256k1</code> when pre-alpha exposes it, and
+                  otherwise falls back to a local Secp256k1 keypair (the
+                  same pattern Ika's pre-alpha SDK uses for Curve25519). The
+                  dWallet account address is derived deterministically from{" "}
+                  <code>(curve, pubkey)</code> so it matches what the Ika
+                  program would produce on-chain.
+                </p>
+                <p>
+                  After generating, fund the tb1q… address from a Bitcoin
+                  testnet faucet — the keeper service will pick up the
+                  balance and post an attestation within ~15s, after which
+                  you can borrow LGUSD against the tBTC.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {BTC_TESTNET_FAUCETS.map((url) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-orange-300 hover:underline"
+                    >
+                      faucet ↗
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Lookup + state */}
+            <div className="rounded-lg border border-border bg-background/40 p-4 space-y-3">
+              <div className="text-[10px] uppercase font-mono text-muted-foreground">
+                2. Open an existing BTC vault
+              </div>
+              <input
+                placeholder="BTC vault PDA (base58)"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-[11px] font-mono"
+                value={btcVaultInput}
+                onChange={(e) => setBtcVaultInput(e.target.value)}
+              />
+              <Button
+                variant="outline"
+                onClick={() => void refreshBtcVault(btcVaultInput)}
+                disabled={!btcVaultInput}
+                className="w-full text-xs"
+              >
+                Load vault
+              </Button>
+              {btcVault && (
+                <div className="space-y-2 text-[11px] font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">tb1 address</span>
+                    <a
+                      href={mempoolAddressUrl(btcVault.bitcoinAddress)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-orange-300 hover:underline truncate max-w-[240px]"
+                    >
+                      {btcVault.bitcoinAddress}
+                    </a>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">attested</span>
+                    <span>
+                      {btcAttestation
+                        ? `${formatBtc(btcAttestation.satoshis)} BTC @ ${btcAttestation.bitcoinBlockHeight}`
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">proof status</span>
+                    <span
+                      className={
+                        btcVault.proofStatus === 1
+                          ? "text-green-300"
+                          : "text-yellow-300"
+                      }
+                    >
+                      {btcVault.proofStatus === 1
+                        ? "VERIFIED"
+                        : btcVault.proofStatus === 2
+                          ? "EXPIRED"
+                          : "PENDING"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">frozen</span>
+                    <span className={btcVault.frozen ? "text-red-300" : ""}>
+                      {String(btcVault.frozen)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Verify + borrow row */}
+          {btcVault && (
+            <div className="grid lg:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-border bg-background/40 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] uppercase font-mono text-muted-foreground">
+                    3. Custody proof
+                  </div>
+                  {btcVault.proofStatus === 1 ? (
+                    <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-green-500/10 text-green-300 border border-green-500/30">
+                      auto-verified
+                    </span>
+                  ) : btcVault.proofStatus === 2 ? (
+                    <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-300 border border-yellow-500/30">
+                      expired
+                    </span>
+                  ) : (
+                    <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-300 border border-yellow-500/30">
+                      pending
+                    </span>
+                  )}
+                </div>
+
+                {btcVault.proofStatus === 1 ? (
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Custody was attested via Ika MessageApproval in the same
+                    transaction that registered this vault. Proofs auto-expire
+                    after 10 minutes — re-run the one-click flow below to
+                    refresh.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    The custody proof for this dWallet has not been verified
+                    on-chain yet (or it expired). Click below to run the full
+                    flow again, or paste a real Ika MessageApproval PDA
+                    manually.
+                  </p>
+                )}
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full text-xs"
+                  disabled={!connected || running || !owner}
+                  onClick={async () => {
+                    if (!owner || !signTransaction || !btcVaultPda) return;
+                    setRunning(true);
+                    try {
+                      const { ix: approveIx, messageApprovalPda } =
+                        await buildDemoCreateMessageApprovalIx({
+                          payer: owner,
+                          dwalletId: btcVault.ikaDwallet.toBytes(),
+                          isSigned: true,
+                        });
+                      const verifyIx = await buildVerifyBtcCustodyProofIx({
+                        owner,
+                        btcVaultPda,
+                        messageApprovalPda,
+                      });
+                      const sig = await sendIx([approveIx, verifyIx], {
+                        connection,
+                        payer: owner,
+                        signTransaction,
+                      });
+                      setBtcMessageApproval(messageApprovalPda.toBase58());
+                      addLog({
+                        status: "ok",
+                        message:
+                          "Custody proof refreshed — MessageApproval re-attested via demo helper and verified on-chain.",
+                        tx: sig,
+                        account: btcVaultPda.toBase58(),
+                      });
+                      await refreshBtcVault();
+                    } catch (e) {
+                      addLog({ status: "fail", message: friendlyError(e) });
+                    } finally {
+                      setRunning(false);
+                    }
+                  }}
+                >
+                  {btcVault.proofStatus === 1
+                    ? "Refresh proof ↻"
+                    : "Verify automatically ⚡"}
+                </Button>
+
+                <details className="text-[10px] text-muted-foreground">
+                  <summary className="cursor-pointer hover:text-foreground">
+                    Manual (advanced): paste a real Ika MessageApproval PDA
+                  </summary>
+                  <div className="space-y-2 mt-2">
+                    <input
+                      placeholder="Ika MessageApproval PDA (base58)"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[11px] font-mono"
+                      value={btcMessageApproval}
+                      onChange={(e) => setBtcMessageApproval(e.target.value)}
+                    />
+                    <Button
+                      onClick={verifyBtcVault}
+                      disabled={!connected || running || !btcMessageApproval}
+                      className="w-full text-[11px]"
+                      variant="outline"
+                      size="sm"
+                    >
+                      verify_btc_custody_proof()
+                    </Button>
+                    <p>
+                      For when you have a real Ika-signed MessageApproval
+                      (curve = Secp256k1, hash = EcdsaDoubleSha256 / BIP143)
+                      produced through the Ika SDK directly. The on-chain
+                      parser auto-detects the 287-byte real layout.
+                    </p>
+                  </div>
+                </details>
+              </div>
+
+              <div className="rounded-lg border border-border bg-background/40 p-4 space-y-2">
+                <div className="text-[10px] uppercase font-mono text-muted-foreground">
+                  4. Borrow / repay LGUSD
+                </div>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="block text-[9px] uppercase font-mono text-muted-foreground">
+                      Amount (LGUSD)
+                    </label>
+                    <input
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[11px] font-mono"
+                      value={btcBorrowAmount}
+                      onChange={(e) => setBtcBorrowAmount(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    onClick={borrowBtc}
+                    disabled={
+                      !connected ||
+                      running ||
+                      !pool ||
+                      !btcVault ||
+                      btcVault.proofStatus !== 1 ||
+                      !btcAttestation ||
+                      btcAttestation.satoshis === 0n ||
+                      btcVault.frozen
+                    }
+                    className="text-xs"
+                  >
+                    Borrow
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => void repayBtc(false)}
+                    disabled={
+                      !btcPosition || btcPosition.principal === 0n || running
+                    }
+                    variant="outline"
+                    className="flex-1 text-xs"
+                  >
+                    Repay
+                  </Button>
+                  <Button
+                    onClick={() => void repayBtc(true)}
+                    disabled={
+                      !btcPosition || btcPosition.principal === 0n || running
+                    }
+                    variant="outline"
+                    className="flex-1 text-xs border-amber-500/40 text-amber-200 hover:bg-amber-500/10"
+                  >
+                    Repay All
+                  </Button>
+                </div>
+                {btcPosition && btcPosition.principal > 0n && pool && (
+                  <div className="text-[11px] font-mono text-muted-foreground">
+                    open debt: {formatLgUsd(
+                      currentDebt(btcPosition.principal, pool.borrowIndex),
+                    )} LGUSD
+                  </div>
+                )}
+                {(!btcAttestation || btcAttestation.satoshis === 0n) && (
+                  <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-2 space-y-2">
+                    <p className="text-[10px] text-yellow-300 leading-relaxed">
+                      Attested balance is <b>0 sats</b>. Either fund the
+                      tb1… address via a Bitcoin testnet faucet (the keeper
+                      will pick it up automatically) — or, since your wallet
+                      is the protocol admin/keeper authority on devnet, you
+                      can inject a mock attestation directly for demo
+                      purposes.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-[10px] h-7 border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/10"
+                      disabled={!connected || running || !owner || !btcVaultPda}
+                      onClick={async () => {
+                        if (!owner || !signTransaction || !btcVaultPda) return;
+                        setRunning(true);
+                        try {
+                          // ~0.001 BTC = 100,000 sats. Plenty to borrow LGUSD against.
+                          const satoshis = BigInt(100_000);
+                          // Use the real Bitcoin testnet tip so the attestation
+                          // mirrors what the keeper would have posted. Block hash
+                          // = 32 zero bytes (the parser only checks length, not
+                          // membership in any consensus chain).
+                          let blockHeight: bigint;
+                          try {
+                            const res = await fetch(
+                              "https://mempool.space/testnet/api/blocks/tip/height",
+                            );
+                            blockHeight = BigInt(
+                              (await res.text()).trim() || "0",
+                            );
+                          } catch {
+                            blockHeight = 0n;
+                          }
+                          const ix = await buildAttestBtcBalanceIx({
+                            keeper: owner,
+                            btcVaultPda,
+                            satoshis,
+                            bitcoinBlockHeight: blockHeight,
+                            bitcoinBlockHash: new Uint8Array(32),
+                          });
+                          const sig = await sendIx(ix, {
+                            connection,
+                            payer: owner,
+                            signTransaction,
+                          });
+                          addLog({
+                            status: "ok",
+                            message: `Mock attestation injected: 0.001 BTC @ block ${blockHeight}. You can now borrow LGUSD against this vault.`,
+                            tx: sig,
+                            account: btcVaultPda.toBase58(),
+                          });
+                          await refreshBtcVault();
+                        } catch (e) {
+                          addLog({
+                            status: "fail",
+                            message: friendlyError(e),
+                          });
+                        } finally {
+                          setRunning(false);
+                        }
+                      }}
+                      title="Devnet-only: protocol admin posts a synthetic 0.001 BTC attestation so demos don't depend on testnet faucet delivery."
+                    >
+                      Inject 0.001 BTC mock attestation (admin / devnet)
+                    </Button>
+                  </div>
+                )}
+                {btcVault.proofStatus !== 1 && (
+                  <p className="text-[10px] text-yellow-300">
+                    Custody proof is {btcVault.proofStatus === 2 ? "expired" : "pending"} —
+                    click <b>Verify automatically ⚡</b> in step 3 to refresh.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
 
         <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-6">
           <section className="rounded-xl border border-border bg-card p-6 space-y-5">

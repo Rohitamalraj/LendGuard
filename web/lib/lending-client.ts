@@ -3,15 +3,18 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { PROGRAM_ID } from "./lendguard-client";
 import {
   deriveAdminPriceFeedPda,
+  deriveBtcAttestationPda,
+  deriveBtcBorrowPositionPda,
   deriveBorrowPositionPda,
   deriveLendingPoolPda,
   LGUSD_MINT,
 } from "./program-actions";
 
 export const ASSET_BTC = 0;
-export const PRICE_SCALE = 100_000_000n;
-export const LGUSD_SCALE = 1_000_000n;
-export const RAY = 1_000_000_000_000_000_000n; // 1e18
+export const PRICE_SCALE = BigInt("100000000");
+export const LGUSD_SCALE = BigInt("1000000");
+export const SATOSHIS_PER_BTC = BigInt("100000000");
+export const RAY = BigInt("1000000000000000000"); // 1e18
 
 export interface LendingPoolAccount {
   borrowAsset: PublicKey;
@@ -56,11 +59,43 @@ export interface BorrowPositionListing {
   position: BorrowPositionAccount;
 }
 
+export interface BtcVaultAccount {
+  vaultId: PublicKey;
+  owner: PublicKey;
+  ikaDwallet: PublicKey;
+  dwalletPubkey: Uint8Array;
+  bitcoinAddress: string;
+  depositedSatoshis: bigint;
+  lastAttestationSlot: bigint;
+  proofStatus: number;
+  proofTimestamp: number;
+  frozen: boolean;
+  liquidationInitiatedAt: number;
+  liquidationSighash: Uint8Array;
+  bump: number;
+}
+
+export interface BitcoinBalanceAttestationAccount {
+  btcVault: PublicKey;
+  bitcoinAddress: string;
+  satoshis: bigint;
+  bitcoinBlockHeight: bigint;
+  bitcoinBlockHash: Uint8Array;
+  attestedAtSlot: bigint;
+  attestedAtUnix: number;
+  keeper: PublicKey;
+  bump: number;
+}
+
 export const LENDING_POOL_LEN =
   8 + 32 + 32 + 32 + 8 + 8 + 32 + 2 + 2 + 2 + 1 + 16 + 8 + 2 + 2 + 1;
 export const ADMIN_PRICE_FEED_LEN = 8 + 1 + 8 + 8 + 32 + 1;
 export const BORROW_POSITION_LEN =
   8 + 32 + 32 + 32 + 8 + 8 + 8 + 16 + 32 + 1;
+export const BTC_VAULT_LEN =
+  8 + 32 + 32 + 32 + 33 + 64 + 1 + 8 + 8 + 1 + 8 + 1 + 8 + 32 + 1;
+export const BTC_ATTESTATION_LEN =
+  8 + 32 + 64 + 1 + 8 + 8 + 32 + 8 + 8 + 32 + 1;
 
 export function defaultBorrowAssetMint(): PublicKey {
   return LGUSD_MINT;
@@ -96,6 +131,34 @@ export async function readBorrowPosition(
   return {
     positionPda,
     position: info ? decodeBorrowPosition(info.data) : null,
+  };
+}
+
+export async function readBtcVault(
+  connection: Connection,
+  btcVaultPda: PublicKey,
+): Promise<{
+  btcVaultPda: PublicKey;
+  btcVault: BtcVaultAccount | null;
+  btcAttestationPda: PublicKey;
+  btcAttestation: BitcoinBalanceAttestationAccount | null;
+  borrowPositionPda: PublicKey;
+  borrowPosition: BorrowPositionAccount | null;
+}> {
+  const [btcAttestationPda] = deriveBtcAttestationPda(btcVaultPda);
+  const [borrowPositionPda] = deriveBtcBorrowPositionPda(btcVaultPda);
+  const [vaultInfo, attestInfo, positionInfo] = await Promise.all([
+    connection.getAccountInfo(btcVaultPda),
+    connection.getAccountInfo(btcAttestationPda),
+    connection.getAccountInfo(borrowPositionPda),
+  ]);
+  return {
+    btcVaultPda,
+    btcVault: vaultInfo ? decodeBtcVault(vaultInfo.data) : null,
+    btcAttestationPda,
+    btcAttestation: attestInfo ? decodeBitcoinBalanceAttestation(attestInfo.data) : null,
+    borrowPositionPda,
+    borrowPosition: positionInfo ? decodeBorrowPosition(positionInfo.data) : null,
   };
 }
 
@@ -241,10 +304,100 @@ export function decodeBorrowPosition(data: Buffer): BorrowPositionAccount | null
   };
 }
 
+export function decodeBtcVault(data: Buffer): BtcVaultAccount | null {
+  if (data.length < BTC_VAULT_LEN) return null;
+  let off = 8;
+  const vaultId = new PublicKey(data.subarray(off, off + 32));
+  off += 32;
+  const owner = new PublicKey(data.subarray(off, off + 32));
+  off += 32;
+  const ikaDwallet = new PublicKey(data.subarray(off, off + 32));
+  off += 32;
+  const dwalletPubkey = new Uint8Array(data.subarray(off, off + 33));
+  off += 33;
+  const addressBytes = data.subarray(off, off + 64);
+  off += 64;
+  const bitcoinAddressLen = data[off];
+  off += 1;
+  const bitcoinAddress = new TextDecoder().decode(
+    addressBytes.subarray(0, bitcoinAddressLen),
+  );
+  const depositedSatoshis = data.readBigUInt64LE(off);
+  off += 8;
+  const lastAttestationSlot = data.readBigUInt64LE(off);
+  off += 8;
+  const proofStatus = data[off];
+  off += 1;
+  const proofTimestamp = Number(data.readBigInt64LE(off));
+  off += 8;
+  const frozen = data[off] === 1;
+  off += 1;
+  const liquidationInitiatedAt = Number(data.readBigInt64LE(off));
+  off += 8;
+  const liquidationSighash = new Uint8Array(data.subarray(off, off + 32));
+  off += 32;
+  const bump = data[off];
+  return {
+    vaultId,
+    owner,
+    ikaDwallet,
+    dwalletPubkey,
+    bitcoinAddress,
+    depositedSatoshis,
+    lastAttestationSlot,
+    proofStatus,
+    proofTimestamp,
+    frozen,
+    liquidationInitiatedAt,
+    liquidationSighash,
+    bump,
+  };
+}
+
+export function decodeBitcoinBalanceAttestation(
+  data: Buffer,
+): BitcoinBalanceAttestationAccount | null {
+  if (data.length < BTC_ATTESTATION_LEN) return null;
+  let off = 8;
+  const btcVault = new PublicKey(data.subarray(off, off + 32));
+  off += 32;
+  const addressBytes = data.subarray(off, off + 64);
+  off += 64;
+  const bitcoinAddressLen = data[off];
+  off += 1;
+  const bitcoinAddress = new TextDecoder().decode(
+    addressBytes.subarray(0, bitcoinAddressLen),
+  );
+  const satoshis = data.readBigUInt64LE(off);
+  off += 8;
+  const bitcoinBlockHeight = data.readBigUInt64LE(off);
+  off += 8;
+  const bitcoinBlockHash = new Uint8Array(data.subarray(off, off + 32));
+  off += 32;
+  const attestedAtSlot = data.readBigUInt64LE(off);
+  off += 8;
+  const attestedAtUnix = Number(data.readBigInt64LE(off));
+  off += 8;
+  const keeper = new PublicKey(data.subarray(off, off + 32));
+  off += 32;
+  const bump = data[off];
+  return {
+    btcVault,
+    bitcoinAddress,
+    satoshis,
+    bitcoinBlockHeight,
+    bitcoinBlockHash,
+    attestedAtSlot,
+    attestedAtUnix,
+    keeper,
+    bump,
+  };
+}
+
 function readBigUInt128LE(buf: Buffer, off: number): bigint {
   const lo = buf.readBigUInt64LE(off);
   const hi = buf.readBigUInt64LE(off + 8);
-  return (hi << 64n) | lo;
+  return (hi << BigInt(64)) | lo;
 }
 
 export function formatLgUsd(amount: bigint): string {
@@ -289,11 +442,31 @@ export function isLiquidatable(
   debt: bigint,
   liquidationThresholdBps: number,
 ): boolean {
-  const COLLATERAL_DECIMALS = 1_000_000_000n;
+  const COLLATERAL_DECIMALS = BigInt("1000000000");
   const collateralValueBorrowUnits =
     (((depositedLamports * priceUsd) / COLLATERAL_DECIMALS) * LGUSD_SCALE) /
     PRICE_SCALE;
   const liquidationValue =
-    (collateralValueBorrowUnits * BigInt(liquidationThresholdBps)) / 10_000n;
+    (collateralValueBorrowUnits * BigInt(liquidationThresholdBps)) / BigInt(10_000);
+  return debt > liquidationValue;
+}
+
+export function formatBtc(satoshis: bigint): string {
+  const whole = satoshis / SATOSHIS_PER_BTC;
+  const frac = satoshis % SATOSHIS_PER_BTC;
+  const fracText = frac.toString().padStart(8, "0").replace(/0+$/, "");
+  return fracText ? `${whole}.${fracText}` : whole.toString();
+}
+
+export function isBtcLiquidatable(
+  satoshis: bigint,
+  priceUsd: bigint,
+  debt: bigint,
+  liquidationThresholdBps: number,
+): boolean {
+  const collateralValueBorrowUnits =
+    (((satoshis * priceUsd) / SATOSHIS_PER_BTC) * LGUSD_SCALE) / PRICE_SCALE;
+  const liquidationValue =
+    (collateralValueBorrowUnits * BigInt(liquidationThresholdBps)) / BigInt(10_000);
   return debt > liquidationValue;
 }

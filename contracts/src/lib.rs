@@ -236,6 +236,89 @@ pub mod lendguard_proof_vault {
         instructions::liquidate_position(ctx)
     }
 
+    /// Register a Bitcoin testnet collateral vault controlled by an Ika
+    /// Secp256k1 dWallet. This is additive to the existing SOL/devnet vault
+    /// flow; it never mutates or replaces `VaultAccount`.
+    pub fn register_btc_vault(
+        ctx: Context<RegisterBtcVault>,
+        ika_dwallet: Pubkey,
+        dwallet_pubkey: [u8; 33],
+        bitcoin_address: Vec<u8>,
+    ) -> Result<()> {
+        instructions::register_btc_vault(ctx, ika_dwallet, dwallet_pubkey, bitcoin_address)
+    }
+
+    /// Admin keeper posts the latest tBTC balance observed on Bitcoin testnet.
+    pub fn attest_btc_balance(
+        ctx: Context<AttestBtcBalance>,
+        satoshis: u64,
+        bitcoin_block_height: u64,
+        bitcoin_block_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::attest_btc_balance(ctx, satoshis, bitcoin_block_height, bitcoin_block_hash)
+    }
+
+    /// Verify a real Ika MessageApproval for the registered Secp256k1 dWallet.
+    pub fn verify_btc_custody_proof(ctx: Context<VerifyBtcCustodyProof>) -> Result<()> {
+        instructions::verify_btc_custody_proof(ctx)
+    }
+
+    /// Refresh a BTC custody proof after a new MessageApproval is signed.
+    pub fn refresh_btc_custody_proof(ctx: Context<VerifyBtcCustodyProof>) -> Result<()> {
+        instructions::refresh_btc_custody_proof(ctx)
+    }
+
+    /// Borrow LGUSD against a verified, freshly attested Bitcoin testnet vault.
+    pub fn borrow_against_btc_collateral(
+        ctx: Context<BorrowAgainstBtcCollateral>,
+        amount: u64,
+        health_ciphertext: Pubkey,
+    ) -> Result<()> {
+        instructions::borrow_against_btc_collateral(ctx, amount, health_ciphertext)
+    }
+
+    /// Repay an LGUSD borrow opened against a BTC testnet vault.
+    pub fn repay_btc_borrow(ctx: Context<RepayBtcBorrow>, amount: u64) -> Result<()> {
+        instructions::repay_btc_borrow(ctx, amount)
+    }
+
+    /// Liquidate an unhealthy BTC-backed position. The liquidator repays LGUSD
+    /// immediately; LendGuard CPI-calls Ika to sign the Bitcoin testnet tx
+    /// sighash, and the broadcaster keeper publishes the signed tx.
+    pub fn liquidate_btc_position(
+        ctx: Context<LiquidateBtcPosition>,
+        bitcoin_sighash: [u8; 32],
+        message_metadata_digest: [u8; 32],
+        user_pubkey: [u8; 32],
+        message_approval_bump: u8,
+    ) -> Result<()> {
+        instructions::liquidate_btc_position(
+            ctx,
+            bitcoin_sighash,
+            message_metadata_digest,
+            user_pubkey,
+            message_approval_bump,
+        )
+    }
+
+    /// Finalize a BTC liquidation after the broadcaster keeper observes the
+    /// signed transaction confirmed on Bitcoin testnet.
+    pub fn finalize_btc_liquidation(
+        ctx: Context<FinalizeBtcLiquidation>,
+        bitcoin_tx_id: [u8; 32],
+        bitcoin_block_height: u64,
+        confirmations: u32,
+        remaining_satoshis: u64,
+    ) -> Result<()> {
+        instructions::finalize_btc_liquidation(
+            ctx,
+            bitcoin_tx_id,
+            bitcoin_block_height,
+            confirmations,
+            remaining_satoshis,
+        )
+    }
+
     // ─── Demo-only helpers (pre-alpha) ────────────────────────────────────
     // These exist so the LendGuard demo can produce on-chain mock accounts
     // matching the byte layouts the Ika and Encrypt integrations expect,

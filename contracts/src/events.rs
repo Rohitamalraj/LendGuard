@@ -141,3 +141,74 @@ pub struct InterestAccrued {
     pub elapsed_slots: u64,
     pub timestamp: i64,
 }
+
+// ─── Bitcoin testnet collateral events ──────────────────────────────────
+
+#[event]
+pub struct BtcVaultRegistered {
+    pub vault_id: Pubkey,
+    pub owner: Pubkey,
+    pub ika_dwallet: Pubkey,
+    pub bitcoin_address: [u8; 64],
+    pub bitcoin_address_len: u8,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BtcProofVerified {
+    pub vault_id: Pubkey,
+    pub ika_dwallet: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BtcAttestationPosted {
+    pub vault_id: Pubkey,
+    pub satoshis: u64,
+    pub bitcoin_block_height: u64,
+    pub keeper: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BtcBorrowOpened {
+    pub vault_id: Pubkey,
+    pub position: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub principal: u64,
+    pub collateral_satoshis: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BtcBorrowRepaid {
+    pub vault_id: Pubkey,
+    pub position: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub remaining_principal: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BtcLiquidationInitiated {
+    pub vault_id: Pubkey,
+    pub position: Pubkey,
+    pub borrower: Pubkey,
+    pub liquidator: Pubkey,
+    pub repaid_amount: u64,
+    pub seized_satoshis: u64,
+    pub bitcoin_sighash: [u8; 32],
+    pub message_approval: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BtcLiquidationFinalized {
+    pub vault_id: Pubkey,
+    pub position: Pubkey,
+    pub bitcoin_tx_id: [u8; 32],
+    pub bitcoin_block_height: u64,
+    pub timestamp: i64,
+}

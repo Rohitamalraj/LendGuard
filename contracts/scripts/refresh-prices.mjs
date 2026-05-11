@@ -5,7 +5,8 @@
 // schedule it on a cron (every 15–30 min) to keep feeds fresh.
 //
 // Usage:
-//   node contracts/scripts/refresh-prices.mjs                 # uses defaults below
+//   node contracts/scripts/refresh-prices.mjs                 # one-shot
+//   POLL_MS=600000 node scripts/refresh-prices.mjs            # daemon (every 10 min)
 //   BTC_USD=92000 ETH_USD=3600 SOL_USD=160 node refresh-prices.mjs
 //
 // Requires the same admin keypair the program was deployed with.
@@ -88,16 +89,34 @@ if (missing.length) {
   process.exit(1);
 }
 
-const tx = new Transaction();
-for (const u of updates) {
-  tx.add(buildUpdatePriceIx(u.assetType, u.scaled));
+console.log(`admin: ${admin.publicKey.toBase58()}`);
+
+async function refreshOnce() {
+  const tx = new Transaction();
+  for (const u of updates) {
+    tx.add(buildUpdatePriceIx(u.assetType, u.scaled));
+  }
+  console.log(
+    `[refresh-prices] ${new Date().toISOString()} BTC=$${BTC_USD} ETH=$${ETH_USD} SOL=$${SOL_USD}`,
+  );
+  try {
+    const sig = await sendAndConfirmTransaction(connection, tx, [admin], {
+      commitment: 'confirmed',
+    });
+    console.log(`[refresh-prices] ok tx=${sig}`);
+  } catch (err) {
+    console.error('[refresh-prices] failed:', err.message ?? err);
+  }
 }
 
-console.log(`admin: ${admin.publicKey.toBase58()}`);
-console.log(
-  `refreshing: BTC=$${BTC_USD.toString()}  ETH=$${ETH_USD.toString()}  SOL=$${SOL_USD.toString()}`,
-);
+const POLL_MS = Number(process.env.POLL_MS ?? '0');
+const ONCE = process.argv.includes('--once') || POLL_MS === 0;
 
-const sig = await sendAndConfirmTransaction(connection, tx, [admin], { commitment: 'confirmed' });
-console.log(`refresh tx: ${sig}`);
-console.log(`explorer:   https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+await refreshOnce();
+if (!ONCE) {
+  console.log(`[refresh-prices] daemon mode — polling every ${POLL_MS}ms`);
+  while (true) {
+    await new Promise((r) => setTimeout(r, POLL_MS));
+    await refreshOnce();
+  }
+}

@@ -728,7 +728,7 @@ pub fn liquidate_position(ctx: Context<LiquidatePosition>) -> Result<()> {
 
 /// Convert raw token units (LGUSD base units) into scaled-debt units using
 /// the pool's CURRENT borrow_index. Caller must accrue first.
-fn to_scaled(amount: u64, borrow_index: u128) -> Result<u64> {
+pub(crate) fn to_scaled(amount: u64, borrow_index: u128) -> Result<u64> {
     let scaled = (amount as u128)
         .checked_mul(LendingPool::RAY)
         .ok_or(LendGuardError::ArithmeticOverflow)?
@@ -740,7 +740,7 @@ fn to_scaled(amount: u64, borrow_index: u128) -> Result<u64> {
 /// Convert a scaled-debt principal back into the actual current debt in raw
 /// token units, using the pool's CURRENT borrow_index. Caller must accrue
 /// first for this to reflect interest.
-fn current_debt(scaled_principal: u64, borrow_index: u128) -> Result<u64> {
+pub(crate) fn current_debt(scaled_principal: u64, borrow_index: u128) -> Result<u64> {
     let raw = (scaled_principal as u128)
         .checked_mul(borrow_index)
         .ok_or(LendGuardError::ArithmeticOverflow)?
@@ -751,7 +751,7 @@ fn current_debt(scaled_principal: u64, borrow_index: u128) -> Result<u64> {
 
 /// Apply utilisation-based interest accrual to `pool`. Updates `borrow_index`
 /// and `last_update_slot`. No-op when no time has passed or no debt exists.
-fn accrue_interest(
+pub(crate) fn accrue_interest(
     pool: &mut LendingPool,
     pool_key: Pubkey,
     now_slot: u64,
@@ -858,7 +858,7 @@ fn validate_bps(ltv: u16, liquidation_threshold: u16, liquidation_bonus: u16) ->
     Ok(())
 }
 
-fn calculate_max_borrow(
+pub(crate) fn calculate_max_borrow(
     deposited_amount: u64,
     price_usd: u64,
     ltv_basis_points: u16,
@@ -886,7 +886,7 @@ fn calculate_max_borrow(
 
 /// True iff `debt > collateral_value * liquidation_threshold_bps / 10000`.
 /// All intermediate arithmetic is in u128 to avoid overflow on extreme prices.
-fn is_liquidatable(
+pub(crate) fn is_liquidatable(
     deposited_amount: u64,
     price_usd: u64,
     debt: u64,
@@ -911,7 +911,7 @@ fn is_liquidatable(
     Ok((debt as u128) > liquidation_value)
 }
 
-fn collateral_with_bonus(deposited_amount: u64, bonus_bps: u16) -> Result<u64> {
+pub(crate) fn collateral_with_bonus(deposited_amount: u64, bonus_bps: u16) -> Result<u64> {
     let bonus_factor = (BASIS_POINTS_DENOMINATOR as u128)
         .checked_add(bonus_bps as u128)
         .ok_or(LendGuardError::ArithmeticOverflow)?;

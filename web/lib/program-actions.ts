@@ -34,7 +34,7 @@ export {
 
 async function sighash(name: string): Promise<Uint8Array> {
   const data = new TextEncoder().encode(`global:${name}`);
-  const hash = await crypto.subtle.digest("SHA-256", data);
+  const hash = await crypto.subtle.digest("SHA-256", data as BufferSource);
   return new Uint8Array(hash).slice(0, 8);
 }
 
@@ -77,6 +77,22 @@ const DEMO_CIPHERTEXT_SEED = Buffer.from("demo_ciphertext");
 const LENDING_POOL_SEED = Buffer.from("lending_pool");
 const BORROW_POSITION_SEED = Buffer.from("borrow_position");
 const ADMIN_PRICE_FEED_SEED = Buffer.from("admin_price");
+const BTC_VAULT_SEED = Buffer.from("btc_vault");
+const BTC_ATTESTATION_SEED = Buffer.from("btc_attestation");
+const BTC_BORROW_POSITION_SEED = Buffer.from("btc_borrow_position");
+
+/** Ika dWallet program ID on Solana devnet (pre-alpha). */
+export const IKA_DWALLET_PROGRAM_ID = new PublicKey(
+  process.env.NEXT_PUBLIC_IKA_DWALLET_PROGRAM_ID ??
+    "87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY",
+);
+
+/** Ika CPI authority seed — must match `CPI_AUTHORITY_SEED` in ika-dwallet-anchor. */
+const IKA_CPI_AUTHORITY_SEED = Buffer.from("__ika_cpi_authority");
+
+export function deriveIkaCpiAuthority(): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync([IKA_CPI_AUTHORITY_SEED], PROGRAM_ID);
+}
 
 // Real SPL token program / associated-token program IDs. Hardcoded to avoid
 // pulling in @solana/spl-token at module load time on the frontend.
@@ -155,6 +171,36 @@ export function deriveAdminPriceFeedPda(assetType: number): [PublicKey, number] 
 export function deriveBorrowPositionPda(vaultPda: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [BORROW_POSITION_SEED, vaultPda.toBuffer()],
+    PROGRAM_ID,
+  );
+}
+
+// ─── BTC testnet PDAs ────────────────────────────────────────────────────────
+
+export function deriveBtcVaultPda(
+  owner: PublicKey,
+  ikaDwallet: PublicKey,
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [BTC_VAULT_SEED, owner.toBuffer(), ikaDwallet.toBuffer()],
+    PROGRAM_ID,
+  );
+}
+
+export function deriveBtcAttestationPda(
+  btcVaultPda: PublicKey,
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [BTC_ATTESTATION_SEED, btcVaultPda.toBuffer()],
+    PROGRAM_ID,
+  );
+}
+
+export function deriveBtcBorrowPositionPda(
+  btcVaultPda: PublicKey,
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [BTC_BORROW_POSITION_SEED, btcVaultPda.toBuffer()],
     PROGRAM_ID,
   );
 }
@@ -728,6 +774,296 @@ export async function buildDemoCreateCiphertextIx(params: {
   return { ix, ciphertextPda };
 }
 
+// ─── BTC testnet collateral builders ─────────────────────────────────────────
+
+function vecU8(bytes: Uint8Array): Uint8Array {
+  const out = new Uint8Array(4 + bytes.length);
+  new DataView(out.buffer).setUint32(0, bytes.length, true);
+  out.set(bytes, 4);
+  return out;
+}
+
+const ASSET_BTC = 0;
+
+export async function buildRegisterBtcVaultIx(params: {
+  owner: PublicKey;
+  ikaDwallet: PublicKey;
+  dwalletPubkey: Uint8Array; // 33 bytes compressed
+  bitcoinAddress: string; // tb1q… or tb1p…
+}): Promise<{
+  ix: TransactionInstruction;
+  btcVaultPda: PublicKey;
+  btcAttestationPda: PublicKey;
+}> {
+  if (params.dwalletPubkey.length !== 33) {
+    throw new Error("dwalletPubkey must be 33 bytes (compressed Secp256k1)");
+  }
+  const [btcVaultPda] = deriveBtcVaultPda(params.owner, params.ikaDwallet);
+  const [btcAttestationPda] = deriveBtcAttestationPda(btcVaultPda);
+  const [protocolStatePda] = deriveProtocolStatePda();
+  const disc = await sighash("register_btc_vault");
+  const addrBytes = new TextEncoder().encode(params.bitcoinAddress);
+
+  const data = concat(
+    disc,
+    params.ikaDwallet.toBuffer(),
+    params.dwalletPubkey,
+    vecU8(addrBytes),
+  );
+
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: btcVaultPda, isSigner: false, isWritable: true },
+      { pubkey: btcAttestationPda, isSigner: false, isWritable: true },
+      { pubkey: protocolStatePda, isSigner: false, isWritable: true },
+      { pubkey: params.owner, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+
+  return { ix, btcVaultPda, btcAttestationPda };
+}
+
+export async function buildAttestBtcBalanceIx(params: {
+  keeper: PublicKey;
+  btcVaultPda: PublicKey;
+  satoshis: bigint;
+  bitcoinBlockHeight: bigint;
+  bitcoinBlockHash: Uint8Array; // 32 bytes
+}): Promise<TransactionInstruction> {
+  if (params.bitcoinBlockHash.length !== 32) {
+    throw new Error("bitcoinBlockHash must be 32 bytes");
+  }
+  const [btcAttestationPda] = deriveBtcAttestationPda(params.btcVaultPda);
+  const [protocolStatePda] = deriveProtocolStatePda();
+  const disc = await sighash("attest_btc_balance");
+  const data = concat(
+    disc,
+    u64ToLe(params.satoshis),
+    u64ToLe(params.bitcoinBlockHeight),
+    params.bitcoinBlockHash,
+  );
+
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.btcVaultPda, isSigner: false, isWritable: true },
+      { pubkey: btcAttestationPda, isSigner: false, isWritable: true },
+      { pubkey: protocolStatePda, isSigner: false, isWritable: false },
+      { pubkey: params.keeper, isSigner: true, isWritable: true },
+    ],
+    data: Buffer.from(data),
+  });
+}
+
+export async function buildVerifyBtcCustodyProofIx(params: {
+  owner: PublicKey;
+  btcVaultPda: PublicKey;
+  messageApprovalPda: PublicKey;
+}): Promise<TransactionInstruction> {
+  const disc = await sighash("verify_btc_custody_proof");
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.btcVaultPda, isSigner: false, isWritable: true },
+      { pubkey: params.messageApprovalPda, isSigner: false, isWritable: false },
+      { pubkey: params.owner, isSigner: true, isWritable: false },
+    ],
+    data: Buffer.from(disc),
+  });
+}
+
+export async function buildRefreshBtcCustodyProofIx(params: {
+  owner: PublicKey;
+  btcVaultPda: PublicKey;
+  messageApprovalPda: PublicKey;
+}): Promise<TransactionInstruction> {
+  const disc = await sighash("refresh_btc_custody_proof");
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.btcVaultPda, isSigner: false, isWritable: true },
+      { pubkey: params.messageApprovalPda, isSigner: false, isWritable: false },
+      { pubkey: params.owner, isSigner: true, isWritable: false },
+    ],
+    data: Buffer.from(disc),
+  });
+}
+
+export async function buildBorrowAgainstBtcCollateralIx(params: {
+  owner: PublicKey;
+  btcVaultPda: PublicKey;
+  borrowAssetMint: PublicKey;
+  poolTokenVault: PublicKey;
+  borrowerTokenAccount: PublicKey;
+  amount: bigint;
+  healthCiphertext?: PublicKey;
+}): Promise<{
+  ix: TransactionInstruction;
+  lendingPoolPda: PublicKey;
+  priceFeedPda: PublicKey;
+  btcAttestationPda: PublicKey;
+  borrowPositionPda: PublicKey;
+}> {
+  const [protocolStatePda] = deriveProtocolStatePda();
+  const [lendingPoolPda] = deriveLendingPoolPda(params.borrowAssetMint);
+  const [priceFeedPda] = deriveAdminPriceFeedPda(ASSET_BTC);
+  const [btcAttestationPda] = deriveBtcAttestationPda(params.btcVaultPda);
+  const [borrowPositionPda] = deriveBtcBorrowPositionPda(params.btcVaultPda);
+  const disc = await sighash("borrow_against_btc_collateral");
+  const healthCt = params.healthCiphertext ?? PublicKey.default;
+  const data = concat(disc, u64ToLe(params.amount), healthCt.toBuffer());
+
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.btcVaultPda, isSigner: false, isWritable: true },
+      { pubkey: protocolStatePda, isSigner: false, isWritable: false },
+      { pubkey: lendingPoolPda, isSigner: false, isWritable: true },
+      { pubkey: priceFeedPda, isSigner: false, isWritable: false },
+      { pubkey: btcAttestationPda, isSigner: false, isWritable: false },
+      { pubkey: borrowPositionPda, isSigner: false, isWritable: true },
+      { pubkey: params.poolTokenVault, isSigner: false, isWritable: true },
+      { pubkey: params.borrowerTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: params.owner, isSigner: true, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+
+  return { ix, lendingPoolPda, priceFeedPda, btcAttestationPda, borrowPositionPda };
+}
+
+export async function buildRepayBtcBorrowIx(params: {
+  owner: PublicKey;
+  btcVaultPda: PublicKey;
+  borrowAssetMint: PublicKey;
+  poolTokenVault: PublicKey;
+  borrowerTokenAccount: PublicKey;
+  amount: bigint; // pass u64::MAX (== 2^64 - 1) as bigint for "repay all"
+}): Promise<TransactionInstruction> {
+  const [lendingPoolPda] = deriveLendingPoolPda(params.borrowAssetMint);
+  const [borrowPositionPda] = deriveBtcBorrowPositionPda(params.btcVaultPda);
+  const disc = await sighash("repay_btc_borrow");
+  const data = concat(disc, u64ToLe(params.amount));
+
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.btcVaultPda, isSigner: false, isWritable: false },
+      { pubkey: lendingPoolPda, isSigner: false, isWritable: true },
+      { pubkey: borrowPositionPda, isSigner: false, isWritable: true },
+      { pubkey: params.poolTokenVault, isSigner: false, isWritable: true },
+      { pubkey: params.borrowerTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: params.owner, isSigner: true, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+}
+
+export async function buildLiquidateBtcPositionIx(params: {
+  liquidator: PublicKey;
+  btcVaultPda: PublicKey;
+  ikaDwallet: PublicKey;
+  borrowAssetMint: PublicKey;
+  poolTokenVault: PublicKey;
+  liquidatorTokenAccount: PublicKey;
+  coordinator: PublicKey;
+  messageApproval: PublicKey;
+  bitcoinSighash: Uint8Array; // 32 bytes — BIP143 double-SHA256 sighash
+  messageMetadataDigest?: Uint8Array; // 32 bytes; defaults to zeros
+  userPubkey: Uint8Array; // 32 bytes (Ed25519 signer in user_pubkey field)
+  messageApprovalBump: number;
+}): Promise<TransactionInstruction> {
+  if (params.bitcoinSighash.length !== 32) {
+    throw new Error("bitcoinSighash must be 32 bytes");
+  }
+  if (params.userPubkey.length !== 32) {
+    throw new Error("userPubkey must be 32 bytes");
+  }
+  const [protocolStatePda] = deriveProtocolStatePda();
+  const [lendingPoolPda] = deriveLendingPoolPda(params.borrowAssetMint);
+  const [priceFeedPda] = deriveAdminPriceFeedPda(ASSET_BTC);
+  const [btcAttestationPda] = deriveBtcAttestationPda(params.btcVaultPda);
+  const [borrowPositionPda] = deriveBtcBorrowPositionPda(params.btcVaultPda);
+  const [cpiAuthority] = deriveIkaCpiAuthority();
+  const disc = await sighash("liquidate_btc_position");
+  const meta = params.messageMetadataDigest ?? new Uint8Array(32);
+  const data = concat(
+    disc,
+    params.bitcoinSighash,
+    meta.slice(0, 32),
+    params.userPubkey.slice(0, 32),
+    new Uint8Array([params.messageApprovalBump]),
+  );
+
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.btcVaultPda, isSigner: false, isWritable: true },
+      { pubkey: protocolStatePda, isSigner: false, isWritable: false },
+      { pubkey: lendingPoolPda, isSigner: false, isWritable: true },
+      { pubkey: priceFeedPda, isSigner: false, isWritable: false },
+      { pubkey: btcAttestationPda, isSigner: false, isWritable: false },
+      { pubkey: borrowPositionPda, isSigner: false, isWritable: true },
+      { pubkey: params.poolTokenVault, isSigner: false, isWritable: true },
+      { pubkey: params.liquidatorTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: PROGRAM_ID, isSigner: false, isWritable: false }, // caller_program
+      { pubkey: cpiAuthority, isSigner: false, isWritable: false },
+      { pubkey: IKA_DWALLET_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: params.coordinator, isSigner: false, isWritable: false },
+      { pubkey: params.ikaDwallet, isSigner: false, isWritable: false },
+      { pubkey: params.messageApproval, isSigner: false, isWritable: true },
+      { pubkey: params.liquidator, isSigner: true, isWritable: true },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.from(data),
+  });
+}
+
+export async function buildFinalizeBtcLiquidationIx(params: {
+  keeper: PublicKey;
+  btcVaultPda: PublicKey;
+  bitcoinTxId: Uint8Array; // 32 bytes
+  bitcoinBlockHeight: bigint;
+  confirmations: number;
+  remainingSatoshis: bigint;
+}): Promise<TransactionInstruction> {
+  if (params.bitcoinTxId.length !== 32) {
+    throw new Error("bitcoinTxId must be 32 bytes");
+  }
+  const [btcAttestationPda] = deriveBtcAttestationPda(params.btcVaultPda);
+  const [borrowPositionPda] = deriveBtcBorrowPositionPda(params.btcVaultPda);
+  const [protocolStatePda] = deriveProtocolStatePda();
+  const disc = await sighash("finalize_btc_liquidation");
+  const confBytes = new Uint8Array(4);
+  new DataView(confBytes.buffer).setUint32(0, params.confirmations, true);
+  const data = concat(
+    disc,
+    params.bitcoinTxId,
+    u64ToLe(params.bitcoinBlockHeight),
+    confBytes,
+    u64ToLe(params.remainingSatoshis),
+  );
+
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: params.btcVaultPda, isSigner: false, isWritable: true },
+      { pubkey: btcAttestationPda, isSigner: false, isWritable: true },
+      { pubkey: borrowPositionPda, isSigner: false, isWritable: true },
+      { pubkey: protocolStatePda, isSigner: false, isWritable: false },
+      { pubkey: params.keeper, isSigner: true, isWritable: true },
+    ],
+    data: Buffer.from(data),
+  });
+}
+
 // ─── high-level helpers ──────────────────────────────────────────────────────
 
 export interface SendIxOptions {
@@ -780,7 +1116,7 @@ export async function generateDemoDwalletId(
   // "account already in use".
   const seed = `lendguard-demo:${owner.toBase58()}:${salt}:${Date.now()}:${Math.random()}`;
   const data = new TextEncoder().encode(seed);
-  const hash = await crypto.subtle.digest("SHA-256", data);
+  const hash = await crypto.subtle.digest("SHA-256", data as BufferSource);
   return new Uint8Array(hash);
 }
 
