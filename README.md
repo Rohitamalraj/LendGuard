@@ -7,7 +7,7 @@
 [![Built with Anchor](https://img.shields.io/badge/Built%20with-Anchor%201.x-orange)](https://www.anchor-lang.com/)
 [![Ika dWallets](https://img.shields.io/badge/Collateral-Ika%20dWallets-green)](https://solana-pre-alpha.ika.xyz/)
 [![Encrypt FHE](https://img.shields.io/badge/Privacy-Encrypt%20FHE-blueviolet)](https://docs.encrypt.xyz/)
-
+[![lendguard-sdk](https://www.npmjs.com/package/lendguard-sdk)]
 ---
 
 ## The Problem
