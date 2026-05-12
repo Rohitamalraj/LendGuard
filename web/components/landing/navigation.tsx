@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/wallet/connect-wallet-button";
-import { Menu, X } from "lucide-react";
+import { Menu, ShieldCheck, X } from "lucide-react";
 
 const navLinks = [
   { name: "Architecture", href: "#features" },
@@ -39,9 +39,10 @@ export function Navigation() {
           <a href="#" className="flex items-center gap-3 group">
             <div className="relative w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20" />
-              <span className="font-mono text-primary font-bold text-lg relative z-10">
-                L
-              </span>
+              <ShieldCheck
+                className="w-5 h-5 text-primary relative z-10"
+                strokeWidth={2.25}
+              />
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-primary/10" />
             </div>
             <span className="text-xl font-bold tracking-tight">LendGuard</span>

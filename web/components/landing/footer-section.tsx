@@ -1,7 +1,6 @@
 "use client";
 
-import { Github, Twitter } from "lucide-react";
-import { Terminal } from "lucide-react";
+import { Github, ShieldCheck, Terminal, Twitter } from "lucide-react";
 
 const footerLinks = {
   Protocol: [
@@ -41,7 +40,7 @@ export function FooterSection() {
               {/* Logo */}
               <a href="#" className="flex items-center gap-2 mb-6">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <span className="font-mono text-primary font-bold">L</span>
+                  <ShieldCheck className="w-4 h-4 text-primary" strokeWidth={2.25} />
                 </div>
                 <span className="font-semibold text-lg tracking-tight">LendGuard</span>
               </a>

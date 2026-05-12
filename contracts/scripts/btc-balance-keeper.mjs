@@ -10,6 +10,8 @@
 //   POLL_MS=30000 node contracts/scripts/btc-balance-keeper.mjs
 
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import {
   Connection,
@@ -20,11 +22,16 @@ import {
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const PROGRAM_ID = new PublicKey('GQia1ewyLgtkgX7HSfuttJ42qNPpYJhUbxeyCPXtcJFR');
 const RPC = process.env.LENDGUARD_RPC ?? 'https://api.devnet.solana.com';
+// Resolve the authority keypair relative to this script so the daemon works
+// from PowerShell, WSL, or CI without depending on absolute paths.
 const KEYPAIR_PATH =
   process.env.LENDGUARD_AUTHORITY_KEYPAIR ??
-  '/mnt/d/Projects/LendGuard/contracts/lendguard-devnet.json';
+  path.resolve(__dirname, '..', 'lendguard-devnet.json');
 const MEMPOOL_API = process.env.BTC_TESTNET_API ?? 'https://mempool.space/testnet/api';
 const POLL_MS = Number(process.env.POLL_MS ?? '30000');
 const ONCE = process.argv.includes('--once');
@@ -162,8 +169,19 @@ const admin = Keypair.fromSecretKey(secret);
 const connection = new Connection(RPC, 'confirmed');
 
 console.log(`[btc-keeper] admin=${admin.publicKey.toBase58()} rpc=${RPC}`);
+
+// Crash-resilient outer loop. Devnet RPC and mempool.space both return
+// transient 502s and connect timeouts; one bad tick must not exit the daemon.
+process.on('unhandledRejection', (reason) => {
+  console.error('[btc-keeper] unhandledRejection (continuing):', reason);
+});
+
 do {
-  await keeperTick(connection, admin);
+  try {
+    await keeperTick(connection, admin);
+  } catch (err) {
+    console.error('[btc-keeper] tick failed (will retry):', err?.message ?? err);
+  }
   if (ONCE) break;
   await new Promise((resolve) => setTimeout(resolve, POLL_MS));
 } while (true);

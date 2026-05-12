@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Lock,
   Shield,
+  ShieldCheck,
   Zap,
   ArrowRight,
   RotateCcw,
@@ -49,6 +50,8 @@ import {
 } from "@/lib/encrypt-client";
 import { IKA_GRPC_URL, IKA_PROGRAM_ID } from "@/lib/ika-client";
 import { runRealIkaFlow } from "@/lib/ika-flow";
+import { emitTorqueEvent } from "@/lib/torque-client";
+import type { TorqueEventName } from "@/lib/torque-events";
 
 // ─── Demo constants ───────────────────────────────────────────────────────────
 const DEPOSIT_AMOUNT_SOL = 0.05; // small enough to keep tx cheap; user can edit
@@ -100,6 +103,29 @@ export default function DemoPage() {
     },
     [],
   );
+
+  const recordTorque = useCallback(
+    (
+      eventName: TorqueEventName,
+      data: Record<string, string | number | boolean | null | undefined> = {},
+    ) => {
+      if (!owner) return;
+      void emitTorqueEvent({
+        eventName,
+        userPubkey: owner.toBase58(),
+        data,
+      });
+    },
+    [owner],
+  );
+
+  useEffect(() => {
+    if (!connected || !owner) return;
+    recordTorque("lendguard_wallet_connected", {
+      cluster: process.env.NEXT_PUBLIC_CLUSTER ?? "devnet",
+      source: "demo_page",
+    });
+  }, [connected, owner, recordTorque]);
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -191,6 +217,11 @@ export default function DemoPage() {
 
       addLog(1, "ok", `register_vault() confirmed on devnet ✅`, { tx: sig });
       addLog(1, "ok", `Vault state: PENDING — no Ika custody proof yet`);
+      recordTorque("lendguard_sol_vault_registered", {
+        vault: vaultPda.toBase58(),
+        tx: sig,
+        collateral_type: "SOL_DEVNET",
+      });
       setCurrentStep(2);
     } catch (e: unknown) {
       addLog(1, "fail", `Failed: ${friendlyError(e)}`);
@@ -240,6 +271,12 @@ export default function DemoPage() {
         "ok",
         `parse_message_approval(): is_signed ✓, dWallet ID ✓, freshness ✓`,
       );
+      recordTorque("lendguard_custody_proof_verified", {
+        vault: session.vaultPda.toBase58(),
+        tx: sig,
+        collateral_type: "SOL_DEVNET",
+        proof_source: "demo_message_approval",
+      });
 
       setSession({ ...session, messageApprovalPda });
       setVaultState((s) =>
@@ -491,6 +528,12 @@ export default function DemoPage() {
         addLog(6, "fail", `Program rejected the deposit on-chain ❌`);
         addLog(6, "fail", `Error: ${detected ?? raw}`);
         addLog(6, "ok", `LendGuard blocked the deposit before any funds were at risk 🛡`);
+        recordTorque("lendguard_attack_demo_completed", {
+          vault: session.vaultPda.toBase58(),
+          tx: "",
+          attack_type: "fake_collateral_deposit",
+          blocked: true,
+        });
       }
     } finally {
       setRunning(false);
@@ -632,7 +675,7 @@ export default function DemoPage() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="font-mono text-primary font-bold">L</span>
+              <ShieldCheck className="w-4 h-4 text-primary" strokeWidth={2.25} />
             </div>
             <span className="font-bold tracking-tight">LendGuard</span>
             <span className="text-muted-foreground text-sm font-mono">/ demo</span>

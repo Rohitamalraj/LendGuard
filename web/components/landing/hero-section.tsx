@@ -71,14 +71,6 @@ export function HeroSection() {
             Run the Demo
             <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-0.5" />
           </Button>
-          <Button 
-            size="lg" 
-            variant="outline" 
-            className="h-11 px-6 text-sm font-medium border-border hover:bg-secondary/50 bg-transparent"
-            onClick={() => window.location.href = "#how-it-works"}
-          >
-            How It Works
-          </Button>
         </div>
         
         {/* Stats with company logos style */}
@@ -88,10 +80,26 @@ export function HeroSection() {
           }`}
         >
           {[
-            { value: "20 days", label: "saved on daily builds.", company: "STRIPE" },
-            { value: "98%", label: "faster time to market.", company: "VERCEL" },
-            { value: "300%", label: "increase in throughput.", company: "LINEAR" },
-            { value: "6x", label: "faster to build + deploy.", company: "NOTION" },
+            {
+              value: "$292M",
+              label: "in fake-collateral losses prevented.",
+              company: "KELPDAO EXPLOIT",
+            },
+            {
+              value: "0",
+              label: "bridges in the trust path.",
+              company: "IKA DWALLET",
+            },
+            {
+              value: "100%",
+              label: "of risk logic on encrypted state.",
+              company: "ENCRYPT FHE",
+            },
+            {
+              value: "2 chains",
+              label: "real collateral, one protocol.",
+              company: "SOL + BTC",
+            },
           ].map((stat) => (
             <div key={stat.company} className="p-6 lg:p-8 flex justify-between min-h-[140px] bg-black shadow-none lg:py-8 flex-col">
               <div>

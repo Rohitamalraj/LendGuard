@@ -1087,6 +1087,39 @@ export async function sendIx(
     await opts.connection.getLatestBlockhash("confirmed");
   tx.recentBlockhash = blockhash;
 
+  // Pre-flight simulation against OUR devnet RPC. Phantom defaults to mainnet
+  // for its wallet-side sim, which always fails for devnet-only programs (the
+  // mint, the LendGuard program ID and the borrow-position PDA don't exist on
+  // mainnet). When that happens Phantom shows a scary "Simulation failed"
+  // banner even though the tx will succeed once submitted. By doing our own
+  // sim here we (a) surface real contract errors with their on-chain message
+  // and (b) let the user safely ignore Phantom's bogus warning.
+  try {
+    const sim = await opts.connection.simulateTransaction(tx, undefined, true);
+    if (sim.value.err) {
+      const logs = sim.value.logs ?? [];
+      const programErr = logs
+        .map((l) => /Program log: AnchorError.*Error Message: (.*)\./.exec(l)?.[1])
+        .find(Boolean);
+      const errStr =
+        programErr ??
+        (typeof sim.value.err === "string"
+          ? sim.value.err
+          : JSON.stringify(sim.value.err));
+      throw new Error(
+        `On-chain pre-flight simulation failed: ${errStr}. ` +
+          `(If your wallet's simulation also failed but this one passed, ` +
+          `enable Testnet Mode in your wallet — it's simulating against mainnet.)`,
+      );
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("On-chain pre-flight")) {
+      throw e;
+    }
+    // RPC issue, not a contract error — swallow and let the actual submit retry.
+    console.warn("[sendIx] pre-flight sim could not run:", e);
+  }
+
   const signed = await opts.signTransaction(tx);
   const sig = await opts.connection.sendRawTransaction(signed.serialize(), {
     skipPreflight: false,

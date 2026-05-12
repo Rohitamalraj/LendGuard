@@ -10,6 +10,7 @@ import {
   Flame,
   RefreshCw,
   Shield,
+  ShieldCheck,
   Unlock,
   Wallet,
 } from "lucide-react";
@@ -74,6 +75,8 @@ import {
   listVaultsForOwner,
   type VaultListing,
 } from "@/lib/lendguard-gate";
+import { emitTorqueEvent } from "@/lib/torque-client";
+import type { TorqueEventName } from "@/lib/torque-events";
 
 const DEFAULT_BTC_PRICE = 90_000_00000000n; // $90,000, 8 decimals
 const CRASH_BTC_PRICE = 50_000_00000000n; // $50,000, 8 decimals
@@ -168,6 +171,36 @@ export default function LendPage() {
   const addLog = useCallback((entry: Log) => {
     setLog((prev) => [entry, ...prev].slice(0, 12));
   }, []);
+
+  const recordTorque = useCallback(
+    (
+      eventName: TorqueEventName,
+      data: Record<string, string | number | boolean | null | undefined> = {},
+    ) => {
+      if (!owner) return;
+      void emitTorqueEvent({
+        eventName,
+        userPubkey: owner.toBase58(),
+        data,
+      }).then((res) => {
+        if (!res.forwarded && res.reason) {
+          addLog({
+            status: "warn",
+            message: `Torque event recorded locally only: ${res.reason}`,
+          });
+        }
+      });
+    },
+    [addLog, owner],
+  );
+
+  useEffect(() => {
+    if (!connected || !owner) return;
+    recordTorque("lendguard_wallet_connected", {
+      cluster: process.env.NEXT_PUBLIC_CLUSTER ?? "devnet",
+      source: "lend_page",
+    });
+  }, [connected, owner, recordTorque]);
 
   const refreshLgUsdBalance = useCallback(
     async (ownerPk: PublicKey) => {
@@ -437,6 +470,13 @@ export default function LendPage() {
         tx: sig,
         account: borrowPositionPda.toBase58(),
       });
+      recordTorque("lendguard_lgusd_borrow_opened", {
+        position: borrowPositionPda.toBase58(),
+        vault: selectedVault.vaultPda.toBase58(),
+        tx: sig,
+        amount_lgusd: Number(amount),
+        collateral_type: selectedVault.vault.assetType === ASSET_BTC ? "BTC" : "SOL",
+      });
       await refresh();
     } catch (e) {
       addLog({ status: "fail", message: friendlyError(e) });
@@ -478,6 +518,14 @@ export default function LendPage() {
           : "repay_borrow() confirmed — tokens returned to pool",
         tx: sig,
         account: borrowPositionPda.toBase58(),
+      });
+      recordTorque("lendguard_lgusd_repaid", {
+        position: borrowPositionPda.toBase58(),
+        vault: selectedVault.vaultPda.toBase58(),
+        tx: sig,
+        amount_lgusd: all ? Number(formatLgUsd(currentDebt(position.principal, pool.borrowIndex))) : Number(amount),
+        repay_all: all,
+        collateral_type: selectedVault.vault.assetType === ASSET_BTC ? "BTC" : "SOL",
       });
       await refresh();
     } catch (e) {
@@ -630,6 +678,19 @@ export default function LendPage() {
         tx: sig,
         account: newVaultPda.toBase58(),
       });
+      recordTorque("lendguard_btc_vault_registered", {
+        vault: newVaultPda.toBase58(),
+        tx: sig,
+        collateral_type: "BTC_TESTNET",
+        bitcoin_address: addr,
+        ika_mode: "secp256k1_pre_alpha_fallback",
+      });
+      recordTorque("lendguard_custody_proof_verified", {
+        vault: newVaultPda.toBase58(),
+        tx: sig,
+        collateral_type: "BTC_TESTNET",
+        proof_source: "demo_message_approval",
+      });
       setBtcVaultInput(newVaultPda.toBase58());
       setBtcMessageApproval(messageApprovalPda.toBase58());
       await refreshBtcVault(newVaultPda);
@@ -661,6 +722,12 @@ export default function LendPage() {
           "verify_btc_custody_proof() confirmed — Ika MessageApproval validates the Secp256k1 dWallet",
         tx: sig,
         account: btcVaultPda.toBase58(),
+      });
+      recordTorque("lendguard_custody_proof_verified", {
+        vault: btcVaultPda.toBase58(),
+        tx: sig,
+        collateral_type: "BTC_TESTNET",
+        proof_source: "manual_message_approval",
       });
       await refreshBtcVault();
     } catch (e) {
@@ -705,6 +772,13 @@ export default function LendPage() {
         message: `borrow_against_btc_collateral(${btcBorrowAmount} LGUSD) confirmed — backed by attested tBTC`,
         tx: sig,
         account: borrowPositionPda.toBase58(),
+      });
+      recordTorque("lendguard_lgusd_borrow_opened", {
+        position: borrowPositionPda.toBase58(),
+        vault: btcVaultPda.toBase58(),
+        tx: sig,
+        amount_lgusd: Number(btcBorrowAmount),
+        collateral_type: "BTC_TESTNET",
       });
       await refreshBtcVault();
       if (owner) void refreshLgUsdBalance(owner);
@@ -751,6 +825,16 @@ export default function LendPage() {
         tx: sig,
         account: btcVaultPda.toBase58(),
       });
+      recordTorque("lendguard_lgusd_repaid", {
+        position: btcVaultPda.toBase58(),
+        vault: btcVaultPda.toBase58(),
+        tx: sig,
+        amount_lgusd: all
+          ? Number(formatLgUsd(currentDebt(btcPosition.principal, pool.borrowIndex)))
+          : Number(btcBorrowAmount),
+        repay_all: all,
+        collateral_type: "BTC_TESTNET",
+      });
       await refreshBtcVault();
       if (owner) void refreshLgUsdBalance(owner);
     } catch (e) {
@@ -766,7 +850,7 @@ export default function LendPage() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="font-mono text-primary font-bold">L</span>
+              <ShieldCheck className="w-4 h-4 text-primary" strokeWidth={2.25} />
             </div>
             <span className="font-bold tracking-tight">LendGuard</span>
             <span className="text-muted-foreground text-sm font-mono">/ lend</span>
@@ -1198,6 +1282,12 @@ export default function LendPage() {
                         tx: sig,
                         account: btcVaultPda.toBase58(),
                       });
+                      recordTorque("lendguard_custody_proof_verified", {
+                        vault: btcVaultPda.toBase58(),
+                        tx: sig,
+                        collateral_type: "BTC_TESTNET",
+                        proof_source: "auto_demo_message_approval",
+                      });
                       await refreshBtcVault();
                     } catch (e) {
                       addLog({ status: "fail", message: friendlyError(e) });
@@ -1355,6 +1445,12 @@ export default function LendPage() {
                             message: `Mock attestation injected: 0.001 BTC @ block ${blockHeight}. You can now borrow LGUSD against this vault.`,
                             tx: sig,
                             account: btcVaultPda.toBase58(),
+                          });
+                          recordTorque("lendguard_btc_attestation_posted", {
+                            vault: btcVaultPda.toBase58(),
+                            tx: sig,
+                            satoshis: Number(satoshis),
+                            bitcoin_block_height: Number(blockHeight),
                           });
                           await refreshBtcVault();
                         } catch (e) {
