@@ -37,7 +37,8 @@ export {
   ASSET_SOL,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  // PDA helpers
+  IKA_DWALLET_PROGRAM_ID,
+  // SOL collateral PDA helpers
   deriveProtocolStatePda,
   deriveLendingPoolPda,
   deriveAdminPriceFeedPda,
@@ -45,9 +46,14 @@ export {
   deriveVaultPda,
   deriveRiskStatePda,
   deriveAssociatedTokenAddress,
+  // BTC collateral PDA helpers
+  deriveBtcVaultPda,
+  deriveBtcAttestationPda,
+  deriveBtcBorrowPositionPda,
+  deriveIkaCpiAuthority,
 } from "./lending/constants.js";
 export {
-  // instruction builders
+  // SOL collateral instruction builders
   buildBorrowAgainstCollateralIx,
   buildRepayBorrowIx,
   buildLiquidatePositionIx,
@@ -64,6 +70,27 @@ export type {
   InitializeLendingPoolParams,
   InitializeAdminPriceFeedParams,
 } from "./lending/instructions.js";
+export {
+  // BTC collateral instruction builders (Ika Secp256k1 dWallet path)
+  buildRegisterBtcVaultIx,
+  buildVerifyBtcCustodyProofIx,
+  buildRefreshBtcCustodyProofIx,
+  buildAttestBtcBalanceIx,
+  buildBorrowAgainstBtcCollateralIx,
+  buildRepayBtcBorrowIx,
+  buildLiquidateBtcPositionIx,
+  buildFinalizeBtcLiquidationIx,
+} from "./lending/btc-instructions.js";
+export type {
+  RegisterBtcVaultParams,
+  VerifyBtcCustodyProofParams,
+  RefreshBtcCustodyProofParams,
+  AttestBtcBalanceParams,
+  BorrowAgainstBtcCollateralParams,
+  RepayBtcBorrowParams,
+  LiquidateBtcPositionParams,
+  FinalizeBtcLiquidationParams,
+} from "./lending/btc-instructions.js";
 export {
   // account decoders + readers
   decodeLendingPool,

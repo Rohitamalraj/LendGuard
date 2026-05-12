@@ -1,5 +1,7 @@
 .env
 node_modules/
+node_modules
+scripts/node_modules
 target/
 .anchor/
 

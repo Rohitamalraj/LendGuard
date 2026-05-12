@@ -1,7 +1,7 @@
 {
   "name": "@lendguard/sdk",
-  "version": "0.2.0",
-  "description": "TypeScript SDK for the LendGuard native lending protocol on Solana — Ika dWallet collateral provenance, Encrypt FHE health monitoring, and full borrow/repay/liquidate lifecycle.",
+  "version": "0.3.0",
+  "description": "TypeScript SDK for the LendGuard native lending protocol on Solana — Ika dWallet collateral provenance (SOL + native Bitcoin via Secp256k1 dWallets), Encrypt FHE health monitoring, and full borrow/repay/liquidate lifecycle.",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -16,7 +16,12 @@
     "ika",
     "encrypt",
     "fhe",
-    "anchor"
+    "anchor",
+    "bitcoin",
+    "dwallet",
+    "mpc",
+    "btc",
+    "lgusd"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

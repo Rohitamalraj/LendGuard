@@ -18,6 +18,15 @@ export const RISK_STATE_SEED = Buffer.from("risk_state");
 export const LENDING_POOL_SEED = Buffer.from("lending_pool");
 export const BORROW_POSITION_SEED = Buffer.from("borrow_position");
 export const ADMIN_PRICE_FEED_SEED = Buffer.from("admin_price");
+// Bitcoin-collateral seeds — match contracts/src/state/btc_vault_account.rs etc.
+export const BTC_VAULT_SEED = Buffer.from("btc_vault");
+export const BTC_ATTESTATION_SEED = Buffer.from("btc_attestation");
+export const BTC_BORROW_POSITION_SEED = Buffer.from("btc_borrow_position");
+// Ika dWallet program (devnet pre-alpha) and the CPI authority seed used by
+// the Ika Anchor SDK. Required only for `liquidate_btc_position`, which
+// performs a CPI into the Ika program to execute the on-chain signed sweep tx.
+export const IKA_DWALLET_PROGRAM_ID = new PublicKey("87W54kGYFQ1rgWqMeu4XTPHWXWmXSQCcjm8vCTfiq1oY");
+const IKA_CPI_AUTHORITY_SEED = Buffer.from("__ika_cpi_authority");
 export function deriveProtocolStatePda(programId = LENDGUARD_PROGRAM_ID) {
     return PublicKey.findProgramAddressSync([PROTOCOL_STATE_SEED], programId);
 }
@@ -43,4 +52,25 @@ export function deriveAssociatedTokenAddress(owner, mint, allowOwnerOffCurve = f
     }
     const [pda] = PublicKey.findProgramAddressSync([owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID);
     return pda;
+}
+// ─── Bitcoin collateral PDA helpers ──────────────────────────────────────────
+/** Derive the `BtcVaultAccount` PDA for a given owner + Ika dWallet pubkey. */
+export function deriveBtcVaultPda(owner, ikaDwallet, programId = LENDGUARD_PROGRAM_ID) {
+    return PublicKey.findProgramAddressSync([BTC_VAULT_SEED, owner.toBuffer(), ikaDwallet.toBuffer()], programId);
+}
+/** Derive the `BitcoinBalanceAttestation` PDA for a given BTC vault. */
+export function deriveBtcAttestationPda(btcVaultPda, programId = LENDGUARD_PROGRAM_ID) {
+    return PublicKey.findProgramAddressSync([BTC_ATTESTATION_SEED, btcVaultPda.toBuffer()], programId);
+}
+/** Derive the `BtcBorrowPosition` PDA for a given BTC vault. */
+export function deriveBtcBorrowPositionPda(btcVaultPda, programId = LENDGUARD_PROGRAM_ID) {
+    return PublicKey.findProgramAddressSync([BTC_BORROW_POSITION_SEED, btcVaultPda.toBuffer()], programId);
+}
+/**
+ * Derive the Ika CPI authority PDA owned by the LendGuard program. Used as a
+ * signer-seed when LendGuard invokes the Ika dWallet program during BTC
+ * liquidation to broadcast the signed sweep transaction.
+ */
+export function deriveIkaCpiAuthority(programId = LENDGUARD_PROGRAM_ID) {
+    return PublicKey.findProgramAddressSync([IKA_CPI_AUTHORITY_SEED], programId);
 }
