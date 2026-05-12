@@ -7,7 +7,6 @@
 [![Built with Anchor](https://img.shields.io/badge/Built%20with-Anchor%201.x-orange)](https://www.anchor-lang.com/)
 [![Ika dWallets](https://img.shields.io/badge/Collateral-Ika%20dWallets-green)](https://solana-pre-alpha.ika.xyz/)
 [![Encrypt FHE](https://img.shields.io/badge/Privacy-Encrypt%20FHE-blueviolet)](https://docs.encrypt.xyz/)
-[![lendguard-sdk](https://www.npmjs.com/package/lendguard-sdk)]
 ---
 
 ## The Problem
@@ -67,6 +66,11 @@ LendGuard is a Solana native lending protocol built on two new primitives:
 | **Private risk monitoring** | Encrypt FHE (REFHE) | MEV front-running, liquidation sandwiching |
 
 On top of these two layers sits a complete lending protocol: a native stablecoin (**LGUSD**), Aave-style scaled debt, permissionless liquidations, vault freeze on attack, and dust-forgiveness for clean closes.
+
+---
+
+## NPM package 
+https://www.npmjs.com/package/lendguard-sdk
 
 ---
 
