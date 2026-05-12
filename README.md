@@ -12,24 +12,30 @@
 
 ## The Problem
 
-DeFi lending is broken in two structurally unfixed ways.
+### What happened in April 2026
+
+On April 17, 2026, **KelpDAO was exploited for $292M**.
+
+A compromised LayerZero validator forged a cross-chain message claiming that $292M of cross-chain collateral had been deposited. **Aave accepted it.** The protocol had no mechanism to verify whether the collateral actually existed — it trusted the bridge message blindly. By the time the oracle caught the price depeg, $190M had already been drained. The rest was frozen mid-flight.
+
+```
+Timeline:
+  April 17, 2026 — Compromised LayerZero validator forges cross-chain deposit message
+  April 17, 2026 — Aave accepts the forged message as valid collateral
+  April 17, 2026 — Attacker borrows $190M against fake collateral
+  April 17, 2026 — Oracle detects depeg, protocol paused — but too late
+  April 17, 2026 — $102M additional funds frozen, unrecoverable at pause time
+  ──────────────────────────────────────────────────────────────────────────
+  Total loss: $292M in a single transaction sequence
+```
+
+**Root cause:** Aave, like every other DeFi lending protocol, has no contract-level proof that collateral is real. It trusts bridge messages. A single corrupted validator was enough.
 
 ### Problem 1 — Bridges are the collateral, and bridges get hacked
 
-Every BTC, ETH, or cross-chain asset used as collateral on Solana is actually a **bridge IOU** — a wrapped token whose real value depends on one or more multisig custodians staying honest.
+Every BTC, ETH, or cross-chain asset used as collateral on Solana is a **bridge IOU** — a wrapped token whose real value depends on multisig custodians staying honest. There is no smart-contract-level check that the underlying asset actually exists.
 
-```
-Bridge hacks (selected):
-  Wormhole        $325M   Feb 2022
-  Ronin           $625M   Mar 2022
-  Nomad           $190M   Aug 2022
-  Multichain      $130M   Jul 2023
-  KelpDAO         $292M   Apr 2026
-  ─────────────────────────────────
-  Total           >$1.5B  …still counting
-```
-
-Protocols like Aave, Solend, Kamino, and MarginFi inherit this risk unconditionally. There is no contract-level mechanism that checks whether the collateral is real — it trusts the bridge's word.
+The KelpDAO incident was not an anomaly. It was the inevitable result of an architecture that has never been fixed.
 
 ### Problem 2 — Public health factors = free money for MEV bots
 
