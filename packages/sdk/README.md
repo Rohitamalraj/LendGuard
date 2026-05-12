@@ -117,6 +117,6 @@ const ix = await buildRepayBtcBorrowIx({
 
 ## Project links
 
-- Repository: <https://github.com/abhishekplus/LendGuard>
+- Repository: <https://github.com/Rohitamalraj/LendGuard>
 - Live demo: <https://lendguard.vercel.app>
 - Protocol docs: see `/docs` in the repo
